@@ -3,6 +3,8 @@
 # Função utilitária: gera a matriz de distâncias a partir de uma lista de cidades
 # =============================================================================
  
+import copy
+import random
 from typing import Optional
 
 from Individuo import Individuo
@@ -172,5 +174,200 @@ def gerar_populacao_aleatoria(
         )
     
     return populacao
+ 
+ 
+# =============================================================================
+# Operadores genéticos: Crossover
+# =============================================================================
+
+def cruzamento_ox(parent1: Individuo, parent2: Individuo, partida: Cidade) -> Individuo:
+    """
+    Realiza cruzamento por ordem (Order Crossover - OX) entre dois indivíduos.
+    
+    O método OX preserva a sequência relativa de cidades de um pai enquanto 
+    insere as cidades restantes na ordem em que aparecem no outro pai.
+    
+    Parâmetros
+    ----------
+    parent1 : Individuo
+        Primeiro indivíduo progenitor
+    parent2 : Individuo
+        Segundo indivíduo progenitor
+    partida : Cidade
+        Cidade de partida (será sempre o primeiro elemento do cromossomo filho)
+    
+    Retorna
+    -------
+    Individuo
+        Novo indivíduo filho resultante do cruzamento
+    
+    Notas
+    -----
+    - O cromossomo filho sempre começa com a cidade de partida
+    - O cruzamento preserva a ordem relativa das cidades
+    - Nenhuma cidade é duplicada no cromossomo filho
+    
+    Exemplo
+    -------
+    >>> # parent1.cromossomo = [SP, Campinas, Santos, Sorocaba, ...]
+    >>> # parent2.cromossomo = [SP, Sorocaba, Santos, Campinas, ...]
+    >>> # filho pode ser: [SP, Campinas, Sorocaba, Santos, ...]
+    """
+    cromossomo_p1 = parent1.cromossomo
+    cromossomo_p2 = parent2.cromossomo
+    
+    length = len(cromossomo_p1)
+    
+    # Escolher dois índices aleatórios para o segmento de cruzamento
+    # (excluindo a primeira posição que é a cidade de partida)
+    if length < 3:
+        # Se houver menos de 3 cidades, apenas retornar uma cópia do parent1
+        filho = Individuo(partida, [c for c in cromossomo_p1])
+        return filho
+    
+    start_index = random.randint(1, length - 2)
+    end_index = random.randint(start_index + 1, length)
+    
+    # Copiar o segmento de parent1
+    segmento = cromossomo_p1[start_index:end_index]
+    
+    # Identificar as cidades que não estão no segmento
+    cidades_no_segmento = {cidade.id for cidade in segmento}
+    
+    # Preencher as posições restantes com cidades de parent2 em ordem
+    cidades_restantes = [cidade for cidade in cromossomo_p2 
+                        if cidade.id not in cidades_no_segmento and cidade.id != partida.id]
+    
+    # Construir o cromossomo do filho
+    filho_cromossomo = [partida]  # Começa com a partida
+    
+    # Adicionar cidades antes do segmento (de parent2)
+    quantidade_antes = start_index - 1
+    filho_cromossomo.extend(cidades_restantes[:quantidade_antes])
+    
+    # Adicionar o segmento
+    filho_cromossomo.extend(segmento)
+    
+    # Adicionar cidades após o segmento (de parent2)
+    filho_cromossomo.extend(cidades_restantes[quantidade_antes:])
+    
+    # Criar indivíduo filho com o novo cromossomo
+    filho = Individuo(partida, [partida] + [c for c in cromossomo_p1 if c.id != partida.id])
+    filho.cromossomo = filho_cromossomo
+    
+    return filho
+
+
+# =============================================================================
+# Operadores genéticos: Mutação
+# =============================================================================
+
+def mutacao_simples(individuo: Individuo, probabilidade_mutacao: float) -> Individuo:
+    """
+    Realiza mutação simples por troca (swap) de duas cidades adjacentes.
+    
+    Com uma dada probabilidade, seleciona duas posições adjacentes no cromossomo
+    e troca as cidades de lugar. A cidade de partida (primeira posição) é preservada.
+    
+    Parâmetros
+    ----------
+    individuo : Individuo
+        O indivíduo a ser mutado
+    probabilidade_mutacao : float
+        Probabilidade de ocorrência da mutação (0.0 a 1.0)
+        Exemplo: 0.01 = 1% de chance
+    
+    Retorna
+    -------
+    Individuo
+        Novo indivíduo com a mutação aplicada (ou cópia sem mutação)
+    
+    Notas
+    -----
+    - A cidade de partida (primeira posição) nunca é movida
+    - A mutação garante que nenhuma cidade é perdida ou duplicada
+    - Se a probabilidade não for atingida, retorna uma cópia idêntica
+    
+    Exemplo
+    -------
+    >>> # cromossomo original: [SP, Campinas, Santos, Sorocaba]
+    >>> # Após mutação (swap): [SP, Santos, Campinas, Sorocaba]
+    """
+    individuo_mutado = copy.deepcopy(individuo)
+    
+    # Verificar se deve ocorrer mutação
+    if random.random() >= probabilidade_mutacao:
+        return individuo_mutado
+    
+    # Garantir que há pelo menos 2 cidades para fazer swap
+    if len(individuo_mutado.cromossomo) < 3:
+        return individuo_mutado
+    
+    # Selecionar duas posições adjacentes aleatoriamente (excluindo a primeira)
+    # Índices válidos: 1 até len-2 (para permitir swap com o próximo)
+    indice1 = random.randint(1, len(individuo_mutado.cromossomo) - 2)
+    indice2 = indice1 + 1
+    
+    # Fazer o swap
+    individuo_mutado.cromossomo[indice1], individuo_mutado.cromossomo[indice2] = \
+        individuo_mutado.cromossomo[indice2], individuo_mutado.cromossomo[indice1]
+    
+    return individuo_mutado
+
+
+def mutacao_inversao(individuo: Individuo, probabilidade_mutacao: float) -> Individuo:
+    """
+    Realiza mutação por inversão de um segmento do cromossomo.
+    
+    Com uma dada probabilidade, seleciona um segmento aleatório do cromossomo
+    (entre dois índices) e inverte a ordem das cidades nesse segmento.
+    A cidade de partida (primeira posição) é preservada.
+    
+    Parâmetros
+    ----------
+    individuo : Individuo
+        O indivíduo a ser mutado
+    probabilidade_mutacao : float
+        Probabilidade de ocorrência da mutação (0.0 a 1.0)
+        Exemplo: 0.05 = 5% de chance
+    
+    Retorna
+    -------
+    Individuo
+        Novo indivíduo com a mutação por inversão aplicada (ou cópia sem mutação)
+    
+    Notas
+    -----
+    - A cidade de partida (primeira posição) é sempre preservada
+    - Um segmento de 2 a N cidades pode ser invertido
+    - A mutação por inversão explora o espaço de soluções de forma mais agressiva
+      que a mutação simples, útil para escapar de mínimos locais
+    
+    Exemplo
+    -------
+    >>> # cromossomo original: [SP, Campinas, Santos, Sorocaba, Ribeirão Preto]
+    >>> # Após inversão do segmento [Santos, Sorocaba]:
+    >>> # resultado: [SP, Campinas, Sorocaba, Santos, Ribeirão Preto]
+    """
+    individuo_mutado = copy.deepcopy(individuo)
+    
+    # Verificar se deve ocorrer mutação
+    if random.random() >= probabilidade_mutacao:
+        return individuo_mutado
+    
+    # Garantir que há pelo menos 3 cidades para inverter um segmento
+    if len(individuo_mutado.cromossomo) < 4:
+        return individuo_mutado
+    
+    # Selecionar dois índices aleatórios para delimitar o segmento
+    # (excluindo a primeira posição que é a cidade de partida)
+    indice1 = random.randint(1, len(individuo_mutado.cromossomo) - 3)
+    indice2 = random.randint(indice1 + 2, len(individuo_mutado.cromossomo) - 1)
+    
+    # Inverter o segmento entre indice1 e indice2 (inclusivo)
+    individuo_mutado.cromossomo[indice1:indice2 + 1] = \
+        reversed(individuo_mutado.cromossomo[indice1:indice2 + 1])
+    
+    return individuo_mutado
  
  

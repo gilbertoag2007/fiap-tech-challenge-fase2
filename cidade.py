@@ -1,6 +1,8 @@
 import math
 from typing import Optional
 
+from produto import Produto
+
 
 class Cidade:
     """
@@ -27,7 +29,7 @@ class Cidade:
         uf: str,
         latitude: float,
         longitude: float,
-        tipo_carga: str | None = None,
+        produto: Produto | None = None,
     ) -> None:
         """
         Parâmetros
@@ -37,16 +39,15 @@ class Cidade:
         uf         : str        — sigla do estado com 2 letras maiúsculas (ex.: "SP")
         latitude   : float      — latitude em graus decimais (negativo = Sul)
         longitude  : float      — longitude em graus decimais (negativo = Oeste)
-        tipo_carga : str | None — "vacina", "insumo" ou None para cidade sem entrega
+        produto    : Produto | None — produto a ser entregue na cidade
         """
-        if tipo_carga not in self.TIPOS_VALIDOS:
-            raise ValueError(f"tipo_carga inválido: '{tipo_carga}'. Use 'vacina', 'insumo' ou None.")
+        
         self.id: int               = id
         self.nome: str             = nome
         self.uf: str               = uf.upper()
         self.latitude: float       = latitude
         self.longitude: float      = longitude
-        self.tipo_carga: str | None = tipo_carga
+        self.produto: Produto | None = produto
 
     # ------------------------------------------------------------------
     # Cálculo de distância
@@ -97,8 +98,8 @@ class Cidade:
         )
 
     def __str__(self) -> str:
-        carga = f" [{self.tipo_carga}]" if self.tipo_carga else ""
-        return f"[{self.id}] {self.nome}/{self.uf} ({self.latitude:.4f}, {self.longitude:.4f}){carga}"
+        produto_str = f" [{self.produto}]" if self.produto else ""
+        return f"[{self.id}] {self.nome}/{self.uf} ({self.latitude:.4f}, {self.longitude:.4f}){produto_str}"
 
 
 

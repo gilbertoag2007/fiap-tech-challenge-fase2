@@ -58,12 +58,12 @@ class Individuo:
 
     def _penalidade_prioridade(self) -> float:
         """Conta pares (insumo, vacina) fora de ordem e retorna a penalidade total."""
-        inner = self.cromossomo[1:-1]
+        cidades_rota = self.cromossomo[1:-1] # sem a cidade de partida e chegada
         violacoes = sum(
             1
-            for i, a in enumerate(inner)
-            for b in inner[i + 1:]
-            if a.tipo_carga == "insumo" and b.tipo_carga == "vacina"
+            for i, a in enumerate(cidades_rota)
+            for b in cidades_rota[i + 1:]
+            if a.produto.prioridade > b.produto.prioridade
         )
         return violacoes * self._PENALIDADE_POR_VIOLACAO
 

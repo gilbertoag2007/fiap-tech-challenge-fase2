@@ -1,6 +1,10 @@
 __pycache__/
 *.pyc
 .venv/
+.env
 .vscode/
 *.html
 *.png
+docs/
+poc/
+codigo_base_professor/

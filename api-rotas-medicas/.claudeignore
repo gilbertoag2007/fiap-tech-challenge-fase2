@@ -5,8 +5,6 @@
 # Código antigo e documentação
 docs/
 versao_original/
-poc/
-codigo_base_professor/
 
 # Configurações do Git
 .gitattributes

@@ -4,24 +4,27 @@ Este arquivo orienta o Claude Code ao trabalhar neste repositório.
 
 ## Escopo de Trabalho
 
-**Leia e altere apenas arquivos dentro de `api-rotas-medicas/`.** Os demais diretórios (`poc/`, `codigo_base_professor/` e arquivos na raiz) são referência do professor e protótipo anterior — consulte-os apenas para entender a lógica original, sem edição.
+**Leia e altere apenas arquivos dentro de `api-rotas-medicas/` e `frontend-rotas-medicas/`.** Os demais diretórios (`poc/`, `codigo_base_professor/` e arquivos na raiz) são referência do professor e protótipo anterior — consulte-os apenas para entender a lógica original, sem edição.
 
 ---
 
 ## Objetivo
 
-API FastAPI que resolve o TSP (Problema do Caixeiro Viajante) aplicado a rotas de entrega de medicamentos e insumos, usando Algoritmos Genéticos. Recebe uma mensagem em linguagem natural descrevendo as cidades e produtos, interpreta via ChatGPT (function calling), e retorna a rota otimizada como GeoJSON.
+Sistema composto por uma API FastAPI (backend) e um frontend React, que resolve o TSP (Problema do Caixeiro Viajante) aplicado a rotas de entrega de medicamentos e insumos usando Algoritmos Genéticos. O usuário descreve a rota em linguagem natural; a API interpreta via ChatGPT (function calling) e retorna a rota otimizada como GeoJSON; o frontend exibe o resultado em um mapa interativo Leaflet.
 
 ---
 
 ## Comandos
 
 ```bash
-# Dentro de api-rotas-medicas/
-uvicorn main:app --reload
-
-# Instalar dependências
+# --- Backend (api-rotas-medicas/) ---
 pip install fastapi uvicorn pydantic openai python-dotenv
+uvicorn main:app --reload          # sobe em http://localhost:8000
+
+# --- Frontend (frontend-rotas-medicas/) ---
+npm install                        # instalar dependências (apenas na primeira vez)
+npm run dev                        # sobe em http://localhost:5173
+npm run build                      # gera build de produção em dist/
 ```
 
 ### Variáveis de ambiente (`.env` na raiz de `api-rotas-medicas/`)
@@ -64,6 +67,54 @@ api-rotas-medicas/
 │   └── produtos.csv                 # Produtos: ID, NOME, PRIORIDADE
 └── config/
     └── settings.py                  # Lê .env via python-dotenv; expõe OPENAI_API_KEY e MODELO_RESPOSTA
+```
+
+---
+
+## Arquitetura de `frontend-rotas-medicas/`
+
+```
+frontend-rotas-medicas/
+├── index.html                       # Entrypoint HTML — carrega Inter font e o bundle React
+├── package.json                     # Dependências: react, react-dom, leaflet
+├── vite.config.js                   # Proxy /rotas /cidades /produtos /health → localhost:8000
+├── tailwind.config.js               # Configuração do Tailwind CSS
+├── postcss.config.js                # PostCSS (Tailwind + Autoprefixer)
+└── src/
+    ├── main.jsx                     # Bootstrap React — importa leaflet.css e index.css
+    ├── index.css                    # Tailwind directives + estilos globais + scrollbar
+    ├── App.jsx                      # Layout raiz: sidebar + painel de formulário + painel de mapa
+    └── components/
+        ├── Sidebar.jsx              # Sidebar escura com logo e navegação
+        ├── RouteForm.jsx            # Formulário com todos os parâmetros do RotasRequest
+        ├── MapView.jsx              # Mapa Leaflet com marcadores numerados e polilinha da rota
+        └── MedicalIllustration.jsx  # SVG ilustrativo exibido antes de gerar a rota
+```
+
+### Stack do frontend
+
+| Camada | Tecnologia |
+|---|---|
+| Framework | React 18 + Vite 5 |
+| Estilo | Tailwind CSS 3 |
+| Mapa | Leaflet.js (vanilla, sem react-leaflet) |
+| HTTP | `fetch` nativo com proxy Vite |
+| Ícones | SVGs inline |
+
+### Fluxo do frontend
+
+```
+Usuário preenche RouteForm
+    │  POST /rotas/ (proxy Vite → localhost:8000)
+    ▼
+App.jsx recebe GeoJSON FeatureCollection
+    │  passa geoJson para MapView
+    ▼
+MapView renderiza:
+    - Marcadores numerados (vermelho = prioridade 1, azul = prioridade 2)
+    - Polilinha tracejada conectando as cidades na ordem de visita
+    - Popup por cidade: nome, UF, produto, prioridade
+    - Legenda no canto inferior esquerdo
 ```
 
 ---

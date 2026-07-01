@@ -21,6 +21,11 @@ def calcular_rota(request: RotasRequest) -> dict[str, Any]:
             populacao_apenas_aleatoria=request.populacao_apenas_aleatoria,
             tamanho_populacao=request.tamanho_populacao,
             tamanho_elite=request.tamanho_elite,
+            tipo_selecao=request.tipo_selecao,
+            tipo_crossover=request.tipo_crossover,
+            tipo_mutacao=request.tipo_mutacao,
+            usar_2opt=request.usar_2opt,
+            tipo_inicializacao=request.tipo_inicializacao,
         )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"erro": str(e)})

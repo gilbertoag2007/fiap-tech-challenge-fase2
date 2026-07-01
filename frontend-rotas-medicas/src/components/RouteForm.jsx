@@ -8,9 +8,16 @@ const DEFAULTS = {
   grau_mutacao: 1.0,
   elitismo: 1,
   populacao_apenas_aleatoria: 0,
+  tipo_selecao: 'truncamento',
+  tipo_crossover: 'ox',
+  tipo_mutacao: 'ambos',
+  usar_2opt: 0,
+  tipo_inicializacao: 'aleatoria',
 }
 
-function NumberInput({ label, field, form, onChange, min, max, step = 1, placeholder }) {
+// --- Componentes auxiliares ---
+
+function NumberInput({ label, field, form, onChange, min, max, placeholder }) {
   return (
     <div>
       <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
@@ -22,7 +29,6 @@ function NumberInput({ label, field, form, onChange, min, max, step = 1, placeho
         onChange={e => onChange(field, e.target.value)}
         min={min}
         max={max}
-        step={step}
         placeholder={placeholder}
         required
         className="w-full text-sm border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent text-slate-700 bg-slate-50 transition-all"
@@ -30,6 +36,118 @@ function NumberInput({ label, field, form, onChange, min, max, step = 1, placeho
     </div>
   )
 }
+
+/** Controle segmentado para 2 opções (ex.: Truncamento / Torneio) */
+function PillRadio({ label, field, form, onChange, options }) {
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+        {label}
+      </label>
+      <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 text-[11px] font-medium">
+        {options.map((opt, i) => {
+          const selected = form[field] === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(field, opt.value)}
+              title={opt.desc}
+              className={`flex-1 py-1.5 px-1 transition-all truncate ${
+                i > 0 ? 'border-l border-slate-200' : ''
+              } ${selected ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+            >
+              {opt.label}
+              {opt.badge && (
+                <span className={`ml-1 text-[9px] ${selected ? 'opacity-80' : 'text-emerald-600'}`}>
+                  ★
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Cards 2×2 para mutação (4 opções) */
+function MutacaoCards({ form, onChange }) {
+  const options = [
+    { value: 'ambos',   label: 'Swap + Inversão', desc: 'Aplica os dois operadores em sequência.', badge: true },
+    { value: 'or_opt',  label: 'Or-opt',           desc: 'Realoca segmento de 1–3 cidades.' },
+    { value: 'swap',    label: 'Swap adjacente',   desc: 'Troca duas cidades vizinhas.' },
+    { value: 'inversao',label: 'Inversão',         desc: 'Inverte um segmento da rota.' },
+  ]
+  return (
+    <div>
+      <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+        Operador de Mutação
+      </label>
+      <div className="grid grid-cols-2 gap-1.5">
+        {options.map(opt => {
+          const selected = form.tipo_mutacao === opt.value
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange('tipo_mutacao', opt.value)}
+              className={`text-left p-2 rounded-lg border-2 transition-all ${
+                selected ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <div className={`w-2.5 h-2.5 rounded-full border-2 flex-shrink-0 transition-colors ${
+                  selected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
+                }`} />
+                <span className="text-[10px] font-semibold text-slate-700 leading-tight truncate">
+                  {opt.label}
+                </span>
+                {opt.badge && (
+                  <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-semibold ml-auto flex-shrink-0">
+                    Padrão
+                  </span>
+                )}
+              </div>
+              <p className="text-[9px] text-slate-400 pl-4 leading-tight">{opt.desc}</p>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Toggle switch para o 2-opt */
+function Toggle({ label, desc, field, form, onChange, warn }) {
+  const checked = form[field] === 1
+  return (
+    <div className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all ${
+      checked ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-50'
+    }`}>
+      <div className="flex-1 min-w-0">
+        <div className="text-[11px] font-semibold text-slate-700">{label}</div>
+        <div className="text-[9px] text-slate-400 leading-tight mt-0.5">{desc}</div>
+        {checked && warn && (
+          <div className="text-[9px] text-amber-600 font-semibold mt-1">⚠️ {warn}</div>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={() => onChange(field, checked ? 0 : 1)}
+        className={`relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors ${
+          checked ? 'bg-blue-600' : 'bg-slate-300'
+        }`}
+      >
+        <span className={`pointer-events-none inline-block h-4 w-4 rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-4' : 'translate-x-0'
+        }`} />
+      </button>
+    </div>
+  )
+}
+
+// --- Formulário principal ---
 
 export default function RouteForm({ onSubmit, onClear, loading, error }) {
   const [form, setForm] = useState(DEFAULTS)
@@ -59,6 +177,11 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
       grau_mutacao: parseFloat(form.grau_mutacao),
       elitismo: form.elitismo,
       populacao_apenas_aleatoria: form.populacao_apenas_aleatoria,
+      tipo_selecao: form.tipo_selecao,
+      tipo_crossover: form.tipo_crossover,
+      tipo_mutacao: form.tipo_mutacao,
+      usar_2opt: form.usar_2opt,
+      tipo_inicializacao: form.tipo_inicializacao,
     })
   }
 
@@ -66,11 +189,12 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
 
   return (
     <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-4">
+
       {/* Header */}
       <div className="pb-3 border-b border-slate-100">
         <h1 className="text-lg font-bold text-slate-800">Criar Nova Rota</h1>
         <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">
-          Informe em linguagem natural quais cidades e produtos devem fazer parte da rota e deixe o sistema otimizar para você.
+          Informe em linguagem natural quais cidades e produtos devem fazer parte da rota.
         </p>
       </div>
 
@@ -84,14 +208,11 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
           </div>
           <span className="text-sm font-semibold text-slate-700">Descreva sua rota</span>
         </div>
-        <p className="text-[11px] text-slate-400 mb-1.5">
-          Informe em linguagem natural as cidades e os produtos que devem fazer parte da rota.
-        </p>
         <textarea
           value={form.mensagem}
           onChange={e => handleChange('mensagem', e.target.value)}
-          placeholder="Ex.: Monte uma rota saindo do Rio de Janeiro para entregar vacinas da Covid 19 nas cidades da baixada fluminense e região serrana do estado do Rio de Janeiro."
-          rows={4}
+          placeholder="Ex.: Monte uma rota saindo do Rio de Janeiro para entregar vacinas da Covid 19 nas cidades da baixada fluminense e região serrana do RJ."
+          rows={3}
           minLength={20}
           maxLength={500}
           required
@@ -112,11 +233,12 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
         </div>
 
         <div className="p-3 flex flex-col gap-3">
-          {/* Row 1: épocas, população, melhores */}
+
+          {/* Parâmetros numéricos */}
           <div className="grid grid-cols-3 gap-2">
-            <NumberInput label="Épocas" field="epocas" form={form} onChange={handleChange} min={1} max={100000} placeholder="100" />
-            <NumberInput label="População" field="tamanho_populacao" form={form} onChange={handleChange} min={2} max={10000} placeholder="200" />
-            <NumberInput label="Melhores" field="tamanho_elite" form={form} onChange={handleChange} min={1} max={9999} placeholder="20" />
+            <NumberInput label="Épocas"      field="epocas"            form={form} onChange={handleChange} min={1}  max={100000} placeholder="100" />
+            <NumberInput label="População"   field="tamanho_populacao" form={form} onChange={handleChange} min={2}  max={10000}  placeholder="200" />
+            <NumberInput label="Melhores"    field="tamanho_elite"     form={form} onChange={handleChange} min={1}  max={9999}   placeholder="20"  />
           </div>
 
           {/* Grau de mutação */}
@@ -130,91 +252,130 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
               </span>
             </div>
             <input
-              type="range"
-              min={0}
-              max={10}
-              step={0.1}
+              type="range" min={0} max={10} step={0.1}
               value={form.grau_mutacao}
               onChange={e => handleChange('grau_mutacao', e.target.value)}
               className="w-full h-1.5 accent-blue-600 cursor-pointer"
             />
             <div className="flex justify-between text-[9px] text-slate-300 mt-0.5">
-              <span>0%</span>
-              <span>5%</span>
-              <span>10%</span>
+              <span>0%</span><span>5%</span><span>10%</span>
             </div>
           </div>
 
-          {/* Método */}
-          <div>
-            <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-1.5 block">
-              Método de Otimização
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                {
-                  isElitismo: true,
-                  label: 'Usar Elitismo',
-                  desc: 'Preserva os melhores indivíduos para garantir evolução contínua.',
-                  badge: 'Recomendado',
-                },
-                {
-                  isElitismo: false,
-                  label: 'Apenas Aleatório',
-                  desc: 'Gera novas soluções apenas com base na aleatoriedade.',
-                },
-              ].map(opt => {
-                const selected = opt.isElitismo ? form.elitismo === 1 : form.elitismo === 0
-                return (
-                  <button
-                    key={String(opt.isElitismo)}
-                    type="button"
-                    onClick={() => handleMethodChange(opt.isElitismo)}
-                    className={`text-left p-2.5 rounded-xl border-2 transition-all ${
-                      selected
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-start gap-1.5 mb-1">
-                      <div
-                        className={`w-3 h-3 rounded-full border-2 flex-shrink-0 mt-0.5 transition-colors ${
-                          selected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
-                        }`}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className="text-[11px] font-semibold text-slate-700 leading-tight">{opt.label}</span>
-                          {opt.badge && (
-                            <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-semibold">
-                              {opt.badge}
-                            </span>
-                          )}
-                        </div>
+          {/* Divisor — Operadores */}
+          <div className="flex items-center gap-2 pt-1">
+            <div className="flex-1 h-px bg-slate-100" />
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Operadores</span>
+            <div className="flex-1 h-px bg-slate-100" />
+          </div>
+
+          {/* Seleção + Crossover em 2 colunas */}
+          <div className="grid grid-cols-2 gap-2">
+            <PillRadio
+              label="Seleção"
+              field="tipo_selecao"
+              form={form}
+              onChange={handleChange}
+              options={[
+                { value: 'truncamento', label: 'Truncamento', badge: true, desc: 'Seleciona os N melhores da população.' },
+                { value: 'torneio',     label: 'Torneio',              desc: 'Sorteia k candidatos e escolhe o melhor.' },
+              ]}
+            />
+            <PillRadio
+              label="Crossover"
+              field="tipo_crossover"
+              form={form}
+              onChange={handleChange}
+              options={[
+                { value: 'ox',  label: 'OX',  badge: true, desc: 'Order Crossover — preserva ordem relativa.' },
+                { value: 'erx', label: 'ERX',              desc: 'Edge Recombination — preserva arestas (melhor para TSP).' },
+              ]}
+            />
+          </div>
+
+          {/* Inicialização */}
+          <PillRadio
+            label="Inicialização da População"
+            field="tipo_inicializacao"
+            form={form}
+            onChange={handleChange}
+            options={[
+              { value: 'aleatoria',              label: 'Aleatória',              badge: true, desc: 'Rotas geradas aleatoriamente.' },
+              { value: 'vizinho_mais_proximo',   label: 'Vizinho mais próximo',               desc: 'Um indivíduo gerado por heurística gulosa.' },
+            ]}
+          />
+
+          {/* Mutação — 4 opções */}
+          <MutacaoCards form={form} onChange={handleChange} />
+
+          {/* 2-opt */}
+          <Toggle
+            label="Busca local 2-opt"
+            desc="Testa inversões de arestas para reduzir a distância total."
+            warn="Reduz a velocidade. Diminua épocas e população ao ativar."
+            field="usar_2opt"
+            form={form}
+            onChange={handleChange}
+          />
+
+          {/* Divisor — Elitismo */}
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-px bg-slate-100" />
+            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Elitismo</span>
+            <div className="flex-1 h-px bg-slate-100" />
+          </div>
+
+          {/* Método de otimização */}
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { isElitismo: true,  label: 'Usar Elitismo',    desc: 'Preserva os melhores entre gerações.', badge: 'Recomendado' },
+              { isElitismo: false, label: 'Apenas Aleatório', desc: 'Sem preservação entre gerações.' },
+            ].map(opt => {
+              const selected = opt.isElitismo ? form.elitismo === 1 : form.elitismo === 0
+              return (
+                <button
+                  key={String(opt.isElitismo)}
+                  type="button"
+                  onClick={() => handleMethodChange(opt.isElitismo)}
+                  className={`text-left p-2.5 rounded-xl border-2 transition-all ${
+                    selected ? 'border-blue-500 bg-blue-50' : 'border-slate-200 bg-white hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-start gap-1.5 mb-1">
+                    <div className={`w-3 h-3 rounded-full border-2 flex-shrink-0 mt-0.5 transition-colors ${
+                      selected ? 'border-blue-500 bg-blue-500' : 'border-slate-300'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[11px] font-semibold text-slate-700 leading-tight">{opt.label}</span>
+                        {opt.badge && (
+                          <span className="text-[9px] bg-emerald-100 text-emerald-700 px-1 py-0.5 rounded font-semibold">
+                            {opt.badge}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-relaxed pl-4">{opt.desc}</p>
-                  </button>
-                )
-              })}
-            </div>
+                  </div>
+                  <p className="text-[10px] text-slate-400 leading-relaxed pl-4">{opt.desc}</p>
+                </button>
+              )
+            })}
           </div>
+
         </div>
       </div>
 
-      {/* Error */}
+      {/* Erro */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-start gap-2">
-          <span className="text-red-500 flex-shrink-0 mt-0.5">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-          </span>
+          <svg className="text-red-500 flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+          </svg>
           <p className="text-sm text-red-700 leading-snug">{error}</p>
         </div>
       )}
 
-      {/* Buttons */}
+      {/* Botões */}
       <div className="flex gap-2">
         <button
           type="button"
@@ -252,6 +413,7 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
           )}
         </button>
       </div>
+
     </form>
   )
 }

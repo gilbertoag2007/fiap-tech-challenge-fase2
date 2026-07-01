@@ -345,6 +345,267 @@ def mutacao_simples(individuo: Individuo, probabilidade_mutacao: float) -> Indiv
     return individuo_mutado
 
 
+# =============================================================================
+# Operador de seleção alternativo: Torneio
+# =============================================================================
+
+def selecionar_por_torneio(
+    populacao: list[Individuo],
+    quantidade: int,
+    tamanho_torneio: int = 3,
+) -> list[Individuo]:
+    """
+    Seleciona indivíduos via torneio probabilístico.
+
+    Em cada rodada sorteia `tamanho_torneio` candidatos aleatórios da população
+    e escolhe o de menor aptidão. Menos suscetível à convergência prematura que
+    o truncamento puro, pois indivíduos medianos ainda têm chance de ser
+    selecionados.
+
+    Parâmetros
+    ----------
+    populacao : list[Individuo]
+    quantidade : int — número de indivíduos a selecionar.
+    tamanho_torneio : int — candidatos por rodada de torneio (padrão=3).
+
+    Retorna
+    -------
+    list[Individuo]
+    """
+    selecionados: list[Individuo] = []
+    k = min(tamanho_torneio, len(populacao))
+    for _ in range(quantidade):
+        candidatos = random.choices(populacao, k=k)
+        vencedor = min(candidatos, key=lambda ind: ind.calcular_aptidao())
+        selecionados.append(vencedor)
+    return selecionados
+
+
+# =============================================================================
+# Operador de crossover alternativo: ERX
+# =============================================================================
+
+def cruzamento_erx(parent1: Individuo, parent2: Individuo, partida: Cidade) -> Individuo:
+    """
+    Realiza cruzamento ERX (Edge Recombination Crossover).
+
+    Constrói uma tabela de adjacências combinando as arestas de ambos os pais
+    e gera um filho que maximiza o reaproveitamento de conexões existentes.
+    É o operador de crossover mais eficaz para TSP puro porque preserva arestas
+    de qualidade em vez de apenas a ordem relativa das cidades.
+
+    Algoritmo
+    ---------
+    1. Para cada cidade, listar seus vizinhos nos dois cromossomos (sem duplicatas).
+    2. Iniciar o filho com a primeira cidade interna de parent1.
+    3. A cada passo escolher como próxima o vizinho disponível com MENOS
+       adjacências restantes (mais restrito). Empate resolvido por sorteio.
+    4. Se não houver vizinhos disponíveis, escolher aleatoriamente entre as
+       cidades ainda não visitadas.
+
+    Parâmetros
+    ----------
+    parent1 : Individuo
+    parent2 : Individuo
+    partida : Cidade
+
+    Retorna
+    -------
+    Individuo
+    """
+    cidades_internas = parent1.cromossomo[1:-1]
+
+    if not cidades_internas:
+        return parent1.copiar()
+
+    mapa_cidades: dict[int, Cidade] = {}
+    for c in parent1.cromossomo:
+        mapa_cidades[c.cod_ibge] = c
+    for c in parent2.cromossomo:
+        mapa_cidades[c.cod_ibge] = c
+
+    # Tabela de adjacências: cod_ibge → conjunto de vizinhos
+    adjacencias: dict[int, set[int]] = {c.cod_ibge: set() for c in cidades_internas}
+
+    for cromossomo in [parent1.cromossomo, parent2.cromossomo]:
+        internas = cromossomo[1:-1]
+        n = len(internas)
+        for i, cidade in enumerate(internas):
+            if cidade.cod_ibge not in adjacencias:
+                continue
+            if i > 0:
+                adjacencias[cidade.cod_ibge].add(internas[i - 1].cod_ibge)
+            if i < n - 1:
+                adjacencias[cidade.cod_ibge].add(internas[i + 1].cod_ibge)
+
+    nao_visitados: set[int] = {c.cod_ibge for c in cidades_internas}
+    filho_cromossomo: list[Cidade] = [partida]
+
+    # Inicia pelo primeiro gene de parent1
+    atual_cod = parent1.cromossomo[1].cod_ibge
+
+    while nao_visitados:
+        if atual_cod not in nao_visitados:
+            atual_cod = random.choice(list(nao_visitados))
+
+        nao_visitados.discard(atual_cod)
+        filho_cromossomo.append(mapa_cidades[atual_cod])
+
+        # Remove a cidade visitada de todas as listas de adjacência
+        for adj in adjacencias.values():
+            adj.discard(atual_cod)
+
+        if not nao_visitados:
+            break
+
+        # Escolhe o próximo: vizinho disponível mais restrito
+        vizinhos = [c for c in adjacencias.get(atual_cod, set()) if c in nao_visitados]
+        if vizinhos:
+            atual_cod = min(vizinhos, key=lambda c: len(adjacencias.get(c, set())))
+        else:
+            atual_cod = random.choice(list(nao_visitados))
+
+    filho_cromossomo.append(partida)
+    return Individuo(partida, filho_cromossomo)
+
+
+# =============================================================================
+# Operador de mutação alternativo: Or-opt
+# =============================================================================
+
+def mutacao_or_opt(individuo: Individuo, probabilidade_mutacao: float) -> Individuo:
+    """
+    Realiza mutação Or-opt: remove um segmento de 1 a 3 cidades e o reinsere
+    em uma posição aleatória diferente do cromossomo.
+
+    Mais agressiva que o swap adjacente pois pode realocar cidades a longas
+    distâncias na rota, escapando de ótimos locais que o swap não alcança.
+    A cidade de partida (posições 0 e -1) nunca é movida.
+
+    Parâmetros
+    ----------
+    individuo : Individuo
+    probabilidade_mutacao : float
+
+    Retorna
+    -------
+    Individuo — com Or-opt aplicado (ou cópia sem mutação).
+    """
+    if random.random() >= probabilidade_mutacao:
+        return individuo.copiar()
+
+    cromossomo = list(individuo.cromossomo)
+    n = len(cromossomo)
+
+    # Mínimo: [partida, A, B, C, partida] para mover 1 cidade e ainda ter reinserção
+    if n < 5:
+        return individuo.copiar()
+
+    max_seg = min(3, n - 3)
+    tamanho_seg = random.randint(1, max_seg)
+    pos_inicio = random.randint(1, n - 2 - tamanho_seg)
+    segmento = cromossomo[pos_inicio: pos_inicio + tamanho_seg]
+
+    # Remove o segmento
+    resto = cromossomo[:pos_inicio] + cromossomo[pos_inicio + tamanho_seg:]
+
+    # Posições válidas para reinserção (excluindo a posição original e as extremidades)
+    posicoes_validas = [p for p in range(1, len(resto) - 1) if p != pos_inicio]
+    if not posicoes_validas:
+        return individuo.copiar()
+
+    pos_insercao = random.choice(posicoes_validas)
+    novo_cromossomo = resto[:pos_insercao] + segmento + resto[pos_insercao:]
+    return Individuo(individuo.partida, novo_cromossomo)
+
+
+# =============================================================================
+# Busca local: 2-opt
+# =============================================================================
+
+def busca_local_2opt(individuo: Individuo, max_passagens: int = 1) -> Individuo:
+    """
+    Aplica busca local 2-opt ao cromossomo.
+
+    A cada passagem testa todos os pares de arestas (i, j) e inverte o segmento
+    entre eles se isso reduzir a distância total. Repete até não encontrar melhora
+    ou atingir `max_passagens`.
+
+    Notas
+    -----
+    Complexidade O(n²) por passagem. Para rotas grandes ou populações numerosas,
+    ativar o 2-opt aumenta significativamente o tempo de execução — recomenda-se
+    reduzir `tamanho_populacao` e `epocas` ao usá-lo.
+
+    Parâmetros
+    ----------
+    individuo : Individuo
+    max_passagens : int — limite de passagens (padrão=1 para controlar custo).
+
+    Retorna
+    -------
+    Individuo — com rota localmente otimizada.
+    """
+    cromossomo = list(individuo.cromossomo)
+    n = len(cromossomo)
+
+    if n < 5:
+        return individuo.copiar()
+
+    for _ in range(max_passagens):
+        melhorou = False
+        for i in range(1, n - 2):
+            for j in range(i + 1, n - 1):
+                d_atual = (
+                    cromossomo[i - 1].distancia_para(cromossomo[i])
+                    + cromossomo[j].distancia_para(cromossomo[j + 1])
+                )
+                d_nova = (
+                    cromossomo[i - 1].distancia_para(cromossomo[j])
+                    + cromossomo[i].distancia_para(cromossomo[j + 1])
+                )
+                if d_nova < d_atual - 1e-9:
+                    cromossomo[i: j + 1] = list(reversed(cromossomo[i: j + 1]))
+                    melhorou = True
+        if not melhorou:
+            break
+
+    return Individuo(individuo.partida, cromossomo)
+
+
+# =============================================================================
+# Inicialização alternativa: vizinho mais próximo
+# =============================================================================
+
+def gerar_individuo_vizinho_mais_proximo(partida: Cidade, cidades: list[Cidade]) -> Individuo:
+    """
+    Gera um indivíduo usando a heurística gulosa do vizinho mais próximo.
+
+    A partir da cidade de partida, visita sempre a cidade não visitada mais
+    próxima até completar a rota. Produz uma solução inicial de qualidade
+    superior à aleatória, acelerando a convergência do AG.
+
+    Parâmetros
+    ----------
+    partida : Cidade
+    cidades : list[Cidade]
+
+    Retorna
+    -------
+    Individuo — rota construída por heurística gulosa.
+    """
+    nao_visitadas = [c for c in cidades if c.cod_ibge != partida.cod_ibge]
+    rota: list[Cidade] = [partida]
+    atual = partida
+    while nao_visitadas:
+        mais_proximo = min(nao_visitadas, key=lambda c: atual.distancia_para(c))
+        rota.append(mais_proximo)
+        nao_visitadas.remove(mais_proximo)
+        atual = mais_proximo
+    rota.append(partida)
+    return Individuo(partida, rota)
+
+
 def mutacao_inversao(individuo: Individuo, probabilidade_mutacao: float) -> Individuo:
     """
     Realiza mutação por inversão de um segmento do cromossomo.

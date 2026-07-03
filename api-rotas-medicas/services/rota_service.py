@@ -96,6 +96,9 @@ class RotaService:
             populacao = ag.gerar_populacao_aleatoria(tamanho_populacao, partida, lista_cidades)
 
         # --- Loop evolucionário ---
+        historico_evolucao: list[dict[str, Any]] = []
+        intervalo_amostra = max(1, epocas // 10)
+
         for epoca in range(epocas):
 
             # Seleção
@@ -134,8 +137,13 @@ class RotaService:
 
             populacao = nova_populacao
 
-            if (epoca + 1) % max(1, epocas // 10) == 0:
+            if (epoca + 1) % intervalo_amostra == 0:
                 melhor_epoca = ag.seleciona_melhores_individuos(populacao, 1)[0]
+                historico_evolucao.append({
+                    "epoca": epoca + 1,
+                    "distancia_km": round(melhor_epoca.distancia, 2),
+                    "aptidao": round(melhor_epoca.aptidao, 2),
+                })
                 print(
                     f"[RotaService] época {epoca + 1}/{epocas} | "
                     f"melhor distância={melhor_epoca.distancia:.2f} km | "
@@ -151,6 +159,10 @@ class RotaService:
         return {
             "type": "FeatureCollection",
             "features": self._individuo_para_features(melhor),
+            "km_total": round(melhor.distancia, 2),
+            "aptidao_final": round(melhor.aptidao, 2),
+            "total_cidades": len(melhor.cromossomo) - 1,
+            "historico_evolucao": historico_evolucao,
         }
 
     # ---------------------------------------------------------------------------

@@ -53,23 +53,6 @@ def _assert_individuo_valido(ind: Individuo, cidades: list[Cidade], partida: Cid
 
 
 # ---------------------------------------------------------------------------
-# gerar_matriz_distancias
-# ---------------------------------------------------------------------------
-
-def test_gerar_matriz_distancias_simetrica_e_diagonal_zero(capsys):
-    cidades = _cidades(5)
-    matriz = ag.gerar_matriz_distancias(cidades)
-    n = len(cidades)
-    for i in range(n):
-        assert matriz[i][i] == 0.0
-        for j in range(n):
-            assert matriz[i][j] == pytest.approx(matriz[j][i])
-            if i != j:
-                assert matriz[i][j] == pytest.approx(cidades[i].distancia_para(cidades[j]))
-    capsys.readouterr()  # descarta a impressão da matriz
-
-
-# ---------------------------------------------------------------------------
 # Inicialização de população
 # ---------------------------------------------------------------------------
 

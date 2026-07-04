@@ -36,10 +36,6 @@ class ProdutoService:
                 except (ValueError, KeyError):
                     continue
 
-    def listar_todos(self) -> list[Produto]:
-        """Retorna todos os produtos carregados."""
-        return list(self._produtos)
-
     def buscar_por_id(self, produto_id: int) -> Produto | None:
         """
         Retorna o produto cujo atributo ``id`` seja igual a ``produto_id``.

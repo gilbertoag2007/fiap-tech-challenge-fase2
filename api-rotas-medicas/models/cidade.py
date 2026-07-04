@@ -21,8 +21,6 @@ class Cidade:
 
     RAIO_TERRA_KM: float = 6371.0  # raio médio da Terra em KM
 
-    TIPOS_VALIDOS = {"vacina", "insumo", None}
-
     def __init__(
         self,
         cod_ibge: int,
@@ -94,16 +92,6 @@ class Cidade:
     def __hash__(self) -> int:
         """Permite usar Cidade em sets e como chave de dicionário."""
         return hash(self.cod_ibge)
-
-    def __repr__(self) -> str:
-        return (
-            f"Cidade(cod_ibge={self.cod_ibge}, nome='{self.nome}', uf='{self.uf}', "
-            f"lat={self.latitude}, lon={self.longitude})"
-        )
-
-    def __str__(self) -> str:
-        produto_str = f" [{self.produto}]" if self.produto else ""
-        return f"[{self.cod_ibge}] {self.nome}/{self.uf} ({self.latitude:.4f}, {self.longitude:.4f}){produto_str}"
 
 
 

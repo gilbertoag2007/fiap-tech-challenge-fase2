@@ -1,8 +1,14 @@
-﻿
-# =============================================================================
-# Função utilitária: gera a matriz de distâncias a partir de uma lista de cidades
-# =============================================================================
- 
+﻿"""
+Operadores genéticos do TSP: inicialização de população, seleção de pais,
+crossover, mutação e busca local — usados por RotaService para montar o
+laço evolutivo configurável (seleção, crossover, mutação, 2-opt e
+inicialização são escolhidos em tempo de execução via RotasRequest).
+
+Convenção de aptidão: menor `individuo.aptidao` é sempre melhor (ver
+Individuo.calcular_aptidao) — todo operador de seleção/comparação aqui
+ordena ou escolhe por valor mínimo, nunca máximo.
+"""
+
 import copy
 import random
 from math import factorial
@@ -11,34 +17,6 @@ from typing import Optional
 from models.individuo import Individuo
 from models.cidade import Cidade
 
-
-def gerar_matriz_distancias(cidades: list[Cidade]) -> list[list[float]]:
-    """
-    Gera uma matriz NxN com as distâncias geodésicas (em KM) entre todas as cidades.
-
-    Parâmetros
-    ----------
-    cidades : list[Cidade]
-
-    Retorna
-    -------
-    list[list[float]] — matriz simétrica onde matriz[i][j] = distância entre
-                        cidades[i] e cidades[j]
-    """
-    n = len(cidades)
-    matriz = [[0.0] * n for _ in range(n)]
-    for i in range(n):
-        for j in range(i + 1, n):
-            dist = cidades[i].distancia_para(cidades[j])
-            matriz[i][j] = dist
-            matriz[j][i] = dist  # matriz simétrica
-    header = f"{'':22}" + "".join(f"{c.nome[:10]:>12}" for c in cidades)
-    print(header)
-    for i, c in enumerate(cidades):
-        linha = f"  {c.nome:<20}" + "".join(f"{matriz[i][j]:>12.1f}" for j in range(len(cidades)))
-        print(linha)
-            
-    return matriz
 
 def gerar_individuo_aleatorio(partida: Cidade, cidades: list[Cidade]) -> Individuo:
     """
@@ -64,8 +42,13 @@ def gerar_individuo_aleatorio(partida: Cidade, cidades: list[Cidade]) -> Individ
 
 
 def seleciona_melhores_individuos(populacao: list[Individuo], quantidade: int) -> list[Individuo]:
-    """Seleciona os n indivíduos com as menores distâncias (melhores aptidões) da população."""
-    return sorted(populacao, key=lambda x: x.calcular_aptidao())[:quantidade]      
+    """Seleciona (por truncamento) os `quantidade` indivíduos com menor aptidão da população.
+
+    Aptidão aqui já inclui a bonificação de prioridade (ver Individuo.calcular_aptidao),
+    portanto não corresponde necessariamente à menor distância percorrida — apenas ao
+    menor valor de `aptidao`.
+    """
+    return sorted(populacao, key=lambda x: x.calcular_aptidao())[:quantidade]
 
 
 def gerar_populacao_aleatoria(
@@ -371,6 +354,15 @@ def selecionar_por_torneio(
     Retorna
     -------
     list[Individuo]
+
+    Notas
+    -----
+    Por ser estocástico, o retorno NÃO garante incluir o melhor indivíduo da
+    população — em populações grandes é comum que ele nunca seja sorteado em
+    nenhuma rodada. Por isso, ao combinar este operador com elitismo, a elite a
+    preservar deve ser recalculada separadamente via `seleciona_melhores_individuos`
+    (é exatamente o que `RotaService.calcular_rota` faz), em vez de reaproveitar o
+    resultado desta função como se fosse a elite real.
     """
     selecionados: list[Individuo] = []
     k = min(tamanho_torneio, len(populacao))
@@ -535,7 +527,10 @@ def busca_local_2opt(individuo: Individuo, max_passagens: int = 1) -> Individuo:
     -----
     Complexidade O(n²) por passagem. Para rotas grandes ou populações numerosas,
     ativar o 2-opt aumenta significativamente o tempo de execução — recomenda-se
-    reduzir `tamanho_populacao` e `epocas` ao usá-lo.
+    reduzir `tamanho_populacao` e `epocas` ao usá-lo. Para instâncias pequenas
+    (poucas dezenas de cidades) o 2-opt costuma encontrar uma rota já ótima (ou
+    muito próxima) em poucas gerações; épocas configuradas além desse ponto de
+    convergência não trazem ganho adicional, apenas custo de processamento.
 
     Parâmetros
     ----------
@@ -605,6 +600,10 @@ def gerar_individuo_vizinho_mais_proximo(partida: Cidade, cidades: list[Cidade])
     rota.append(partida)
     return Individuo(partida, rota)
 
+
+# =============================================================================
+# Operador de mutação alternativo: Inversão
+# =============================================================================
 
 def mutacao_inversao(individuo: Individuo, probabilidade_mutacao: float) -> Individuo:
     """

@@ -89,10 +89,6 @@ class CidadeService:
     # Consultas
     # ------------------------------------------------------------------
 
-    def listar_todas(self) -> list[Cidade]:
-        """Retorna todas as cidades carregadas."""
-        return list(self._cidades)
-
     def listar_por_uf(self, uf: str) -> list[Cidade]:
         """
         Retorna cidades filtradas pela UF.

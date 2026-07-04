@@ -78,12 +78,6 @@ def testar_cidade_service():
 def testar_produto_service():
     secao("ProdutoService")
 
-    # listar_todos
-    todos = produto_service.listar_todos()
-    ok("listar_todos()", f"{len(todos)} produto(s)")
-    for p in todos[:3]:
-        print(f"       id={p.id} | {p.nome} | prioridade={p.prioridade}")
-
     # buscar_por_id
     produto = produto_service.buscar_por_id(1)
     if produto:

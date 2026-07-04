@@ -27,6 +27,8 @@ class RotaService:
         tipo_mutacao: str = "ambos",
         usar_2opt: int = 0,
         tipo_inicializacao: str = "aleatoria",
+        usar_parada_antecipada: int = 0,
+        paciencia_parada_antecipada: int = 30,
     ) -> dict[str, Any]:
         """
         Executa o algoritmo genético e retorna a rota otimizada como GeoJSON FeatureCollection.
@@ -59,6 +61,14 @@ class RotaService:
             as épocas ao ativar.
         tipo_inicializacao : str
             'aleatoria' (padrão) ou 'vizinho_mais_proximo'.
+        usar_parada_antecipada : int
+            1 = encerra o algoritmo antes de completar todas as épocas caso a aptidão não
+            melhore por `paciencia_parada_antecipada` épocas seguidas. Só tem efeito
+            quando elitismo=1 (sem elitismo a aptidão pode oscilar legitimamente entre
+            gerações, tornando a ausência de melhora um sinal não confiável).
+        paciencia_parada_antecipada : int
+            Número de épocas consecutivas sem melhora toleradas antes de encerrar
+            antecipadamente. Só é considerado quando usar_parada_antecipada=1 e elitismo=1.
 
         Retorna
         -------
@@ -77,12 +87,17 @@ class RotaService:
         partida = lista_cidades[0]
         probabilidade_mutacao = grau_mutacao / 100.0
 
+        # Parada antecipada só é confiável com elitismo=1 (garante que a aptidão nunca
+        # piora entre épocas); sem elitismo, "sem melhora" pode ser apenas oscilação normal.
+        parada_antecipada_ativa = usar_parada_antecipada == 1 and elitismo == 1
+
         print(
             f"[RotaService] {len(lista_cidades)} cidades | {epocas} épocas | "
             f"população={tamanho_populacao} | elite={tamanho_elite} | "
             f"mutação={probabilidade_mutacao:.4f} | elitismo={elitismo} | "
             f"seleção={tipo_selecao} | crossover={tipo_crossover} | "
-            f"mutação_op={tipo_mutacao} | 2opt={usar_2opt} | init={tipo_inicializacao}"
+            f"mutação_op={tipo_mutacao} | 2opt={usar_2opt} | init={tipo_inicializacao} | "
+            f"parada_antecipada={'ativa (paciência=' + str(paciencia_parada_antecipada) + ')' if parada_antecipada_ativa else 'inativa'}"
         )
 
         # --- Inicialização da população ---
@@ -99,15 +114,33 @@ class RotaService:
         historico_evolucao: list[dict[str, Any]] = []
         intervalo_amostra = max(1, epocas // 10)
 
-        for epoca in range(epocas):
+        melhor_aptidao_referencia: float | None = None
+        epocas_sem_melhora = 0
+        epocas_executadas = 0
+        parou_antecipadamente = False
 
-            # Seleção
+        for epoca in range(epocas):
+            epocas_executadas = epoca + 1
+
+            # Seleção dos pais para cruzamento
             if tipo_selecao == "torneio":
                 melhores = ag.selecionar_por_torneio(populacao, tamanho_elite)
             else:
                 melhores = ag.seleciona_melhores_individuos(populacao, tamanho_elite)
 
-            nova_populacao: list[Individuo] = list(melhores) if elitismo == 1 else []
+            # Elitismo: preserva sempre os verdadeiros melhores indivíduos da população,
+            # independente do método usado para selecionar os pais. O torneio é estocástico
+            # e pode não sortear o melhor indivíduo entre seus vencedores — usar `melhores`
+            # diretamente nesse caso deixaria o melhor indivíduo se perder entre gerações.
+            if elitismo == 1:
+                elite = (
+                    ag.seleciona_melhores_individuos(populacao, tamanho_elite)
+                    if tipo_selecao == "torneio"
+                    else melhores
+                )
+                nova_populacao: list[Individuo] = list(elite)
+            else:
+                nova_populacao = []
 
             while len(nova_populacao) < tamanho_populacao:
                 parent1, parent2 = random.choices(melhores, k=2)
@@ -137,8 +170,14 @@ class RotaService:
 
             populacao = nova_populacao
 
-            if (epoca + 1) % intervalo_amostra == 0:
+            # Só recalcula o melhor indivíduo fora do ponto de amostragem quando a
+            # parada antecipada está ativa — evita custo extra nos demais casos.
+            eh_ponto_amostra = (epoca + 1) % intervalo_amostra == 0
+            melhor_epoca = None
+            if eh_ponto_amostra or parada_antecipada_ativa:
                 melhor_epoca = ag.seleciona_melhores_individuos(populacao, 1)[0]
+
+            if eh_ponto_amostra:
                 historico_evolucao.append({
                     "epoca": epoca + 1,
                     "distancia_km": round(melhor_epoca.distancia, 2),
@@ -149,6 +188,21 @@ class RotaService:
                     f"melhor distância={melhor_epoca.distancia:.2f} km | "
                     f"aptidão={melhor_epoca.aptidao:.2f}"
                 )
+
+            if parada_antecipada_ativa:
+                if melhor_aptidao_referencia is None or melhor_epoca.aptidao < melhor_aptidao_referencia - 1e-9:
+                    melhor_aptidao_referencia = melhor_epoca.aptidao
+                    epocas_sem_melhora = 0
+                else:
+                    epocas_sem_melhora += 1
+
+                if epocas_sem_melhora >= paciencia_parada_antecipada:
+                    parou_antecipadamente = True
+                    print(
+                        f"[RotaService] Parada antecipada na época {epoca + 1}/{epocas} — "
+                        f"sem melhora por {paciencia_parada_antecipada} épocas seguidas."
+                    )
+                    break
 
         melhor = ag.seleciona_melhores_individuos(populacao, 1)[0]
         print(
@@ -163,6 +217,8 @@ class RotaService:
             "aptidao_final": round(melhor.aptidao, 2),
             "total_cidades": len(melhor.cromossomo) - 1,
             "historico_evolucao": historico_evolucao,
+            "epocas_executadas": epocas_executadas,
+            "parou_antecipadamente": parou_antecipadamente,
         }
 
     # ---------------------------------------------------------------------------

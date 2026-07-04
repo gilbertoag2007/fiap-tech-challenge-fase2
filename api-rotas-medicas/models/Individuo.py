@@ -24,23 +24,29 @@ class Individuo:
         self.cromossomo: list[Cidade] = cromossomo
 
 
-    # Penalidade adicionada à aptidão por cada par (insumo antes de vacina) na rota.
-    # Valor alto o suficiente para que qualquer rota com violação seja pior
-    # do que qualquer rota válida, independentemente da distância.
-    _PENALIDADE_POR_VIOLACAO: float = 10_000.0
+    # Bonificação subtraída da aptidão por cidade de prioridade 1 ("vacina"),
+    # ponderada pela posição na rota (quanto mais cedo, maior o bônus).
+    # Ordem de grandeza escolhida para ficar próxima da escala de uma única
+    # perna do trajeto (dezenas a centenas de KM): grande o suficiente para
+    # orientar a seleção do AG em direção à antecipação de prioridades, mas
+    # baixa o suficiente para não sobrepor economias reais de distância —
+    # ao contrário da extinta _PENALIDADE_POR_VIOLACAO (10_000.0), que era
+    # deliberadamente dominante para forçar uma restrição quase rígida.
+    _BONIFICACAO_POR_ANTECIPACAO: float = 100.0
 
     def calcular_aptidao(self) -> float:
         """
         Calcula a aptidão do indivíduo como:
-            aptidao = distancia_total + penalidade_prioridade
+            aptidao = distancia_total - bonificacao_prioridade
 
-        A penalidade é aplicada quando cidades de menor prioridade ("insumo")
-        aparecem antes de cidades de maior prioridade ("vacina") na rota.
-        Cada par fora de ordem adiciona _PENALIDADE_POR_VIOLACAO à aptidão.
+        A bonificação recompensa cidades de maior prioridade ("vacina") por
+        ocuparem posições mais cedo na rota: cada uma contribui com
+        (posicoes_restantes * _BONIFICACAO_POR_ANTECIPACAO), de modo que
+        quanto mais cedo a cidade aparecer, maior o bônus.
 
         Atributos definidos após a chamada
         ------------------------------------
-        distancia : float — distância real percorrida em KM (sem penalidade)
+        distancia : float — distância real percorrida em KM (sem bonificação)
         aptidao   : float — valor usado pelo AG para comparar indivíduos
 
         Retorna
@@ -53,19 +59,18 @@ class Individuo:
             distancia_total += self.cromossomo[i].distancia_para(self.cromossomo[i + 1])
 
         self.distancia = distancia_total
-        self.aptidao   = distancia_total + self._penalidade_prioridade()
+        self.aptidao   = distancia_total - self._bonificacao_prioridade()
         return self.aptidao
 
-    def _penalidade_prioridade(self) -> float:
-        """Conta pares (insumo, vacina) fora de ordem e retorna a penalidade total."""
-        cidades_rota = self.cromossomo[1:-1] # sem a cidade de partida e chegada
-        violacoes = sum(
-            1
-            for i, a in enumerate(cidades_rota)
-            for b in cidades_rota[i + 1:]
-            if a.produto.prioridade > b.produto.prioridade
+    def _bonificacao_prioridade(self) -> float:
+        """Bonifica cidades de prioridade 1 por ocuparem posições mais cedo na rota."""
+        cidades_rota = self.cromossomo[1:-1]  # sem a cidade de partida e chegada
+        n = len(cidades_rota)
+        return sum(
+            (n - i) * self._BONIFICACAO_POR_ANTECIPACAO
+            for i, c in enumerate(cidades_rota)
+            if c.produto.prioridade == 1
         )
-        return violacoes * self._PENALIDADE_POR_VIOLACAO
 
 
     # ------------------------------------------------------------------

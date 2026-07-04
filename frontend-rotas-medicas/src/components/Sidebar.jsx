@@ -5,7 +5,7 @@ const NAV_ITEMS = [
     active: true,
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+        <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
       </svg>
     ),
   },
@@ -15,10 +15,10 @@ const NAV_ITEMS = [
     active: false,
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/>
-        <line x1="16" y1="17" x2="8" y2="17"/>
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="16" y1="13" x2="8" y2="13" />
+        <line x1="16" y1="17" x2="8" y2="17" />
       </svg>
     ),
   },
@@ -34,8 +34,8 @@ export default function Sidebar() {
       <div className="flex items-center gap-2.5 pr-5 border-r border-white/10 flex-shrink-0">
         <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center shadow-md flex-shrink-0">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
-            <circle cx="12" cy="10" r="3"/>
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+            <circle cx="12" cy="10" r="3" />
           </svg>
         </div>
         <div>
@@ -49,11 +49,10 @@ export default function Sidebar() {
         {NAV_ITEMS.map(item => (
           <button
             key={item.id}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-              item.active
-                ? 'bg-blue-600 text-white'
-                : 'text-blue-200/60 hover:text-white hover:bg-white/5'
-            }`}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${item.active
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-200/60 hover:text-white hover:bg-white/5'
+              }`}
           >
             <span>{item.icon}</span>
             <span>{item.label}</span>
@@ -67,7 +66,7 @@ export default function Sidebar() {
       {/* Right actions */}
       <div className="flex items-center gap-3">
         <button className="text-[11px] text-blue-300/80 border border-blue-700/50 px-3 py-1 rounded-full hover:bg-blue-800/50 hover:text-blue-200 transition-colors whitespace-nowrap">
-          💡 Dicas de como descrever sua rota
+          💡 Tech Challenge Fase 2 - 9IADT - Grupo 88
         </button>
         <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
           G

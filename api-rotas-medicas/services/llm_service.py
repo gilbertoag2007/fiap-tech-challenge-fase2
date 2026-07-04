@@ -32,10 +32,38 @@ class LLMService:
         buscar_cidade_por_cod_ibge.
     - Caso não encontre o código IBGE pelas funções locais, utilize seu conhecimento para inferir.
 
+    CIDADES FRONTEIRIÇAS/VIZINHAS (adjacência geográfica):
+    - Quando a mensagem pedir municípios que fazem fronteira ou são vizinhos de uma cidade
+      (ex.: "cidades que fazem fronteira com a cidade do Rio de Janeiro"), NÃO utilize as
+      ferramentas de pesquisa (pesquisar_cidade_por_nome, listar_cidades_por_regiao,
+      listar_cidades_por_uf) para descobrir quais são essas cidades — os dados locais não
+      contêm nenhuma relação de adjacência/fronteira entre municípios.
+    - Em vez disso, identifique diretamente, usando seu próprio conhecimento geográfico do
+      Brasil, o nome e o código IBGE de cada município fronteiriço, e inclua cada par
+      (cod_ibge, produto_id) diretamente na resposta final.
+    - Seja rigoroso e conservador: inclua APENAS municípios cuja fronteira direta com a
+      cidade de referência você tem certeza — nunca inclua um município só por pertencer à
+      mesma região tradicional, à mesma região metropolitana ou por estar "próximo"/na
+      mesma área geral. Proximidade ou vizinhança de região NÃO é fronteira direta.
+    - Na dúvida sobre se dois municípios realmente compartilham fronteira, prefira omitir o
+      município a incluí-lo incorretamente.
+
     Para identificar os produtos, utilize a função pesquisar_produto_por_nome para cada produto
     mencionado na mensagem. Se a busca retornar lista vazia, tente novamente com um termo mais
     curto ou com apenas a palavra principal do produto (ex.: se "vacinas da Covid 19" não
     retornar resultado, tente "vacina covid" ou somente "covid").
+
+    MENSAGENS COM MÚLTIPLOS BLOCOS REGIÃO/CIDADE + PRODUTO:
+    - Uma mensagem pode descrever mais de um trecho independente, cada um combinando um produto
+      com um conjunto de cidades (ex.: "entregar vacinas na região X e seringas na região Y").
+      Trate cada trecho como um bloco isolado: NUNCA associe um produto às cidades de um bloco
+      diferente daquele em que ele foi mencionado.
+    - Se apenas um dos blocos mencionar explicitamente a UF (ex.: "região Y do estado do Rio de
+      Janeiro"), aplique essa mesma UF aos demais blocos da mensagem que não tiverem UF
+      explícita, desde que nenhum outro estado tenha sido citado.
+    - Resolva cada bloco por completo (cidades do bloco + produto do bloco) antes de passar para
+      o próximo, e só monte a lista final de pares depois de ter todos os blocos resolvidos —
+      para não perder nem misturar itens entre eles.
 
     IDENTIFICAÇÃO DA CIDADE DE PARTIDA:
     - Analise a mensagem para identificar se há uma cidade de partida/origem explicitamente
@@ -207,6 +235,9 @@ class LLMService:
                 continue
 
             nome_cidade = match.group(1).strip().rstrip(".")
+            # Remove sufixo de UF (ex.: "Niterói-RJ" → "Niterói") pois o nome
+            # cadastrado no CSV do IBGE não inclui a sigla do estado.
+            nome_cidade = re.sub(r"\s*-\s*[A-Za-z]{2}$", "", nome_cidade).strip()
             cidades = cidade_service.pesquisar_por_nome(nome_cidade)
             if not cidades:
                 continue

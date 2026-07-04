@@ -10,7 +10,7 @@ class RotasRequest(BaseModel):
     mensagem: str = Field(
         ...,
         min_length=20,
-        max_length=200,
+        max_length=500,
         description="Mensagem descritiva com a lista de cidades e produtos a serem entregues na rota a ser otimizada.",
     )
     epocas: int = Field(
@@ -91,6 +91,28 @@ class RotasRequest(BaseModel):
             "Estratégia de geração da população inicial: "
             "'aleatoria' = rotas embaralhadas aleatoriamente (padrão); "
             "'vizinho_mais_proximo' = inclui um indivíduo gerado pela heurística gulosa."
+        ),
+    )
+    usar_parada_antecipada: int = Field(
+        default=0,
+        ge=0,
+        le=1,
+        description=(
+            "Encerra o algoritmo antes de completar todas as épocas caso a aptidão não "
+            "melhore por `paciencia_parada_antecipada` épocas seguidas (1=sim, 0=não). "
+            "Só tem efeito quando elitismo=1 — sem elitismo a aptidão pode oscilar "
+            "legitimamente entre gerações, tornando a ausência de melhora um sinal não "
+            "confiável para encerrar a execução."
+        ),
+    )
+    paciencia_parada_antecipada: int = Field(
+        default=30,
+        ge=1,
+        le=100_000,
+        description=(
+            "Número de épocas consecutivas sem melhora na aptidão toleradas antes de "
+            "encerrar antecipadamente. Só é considerado quando usar_parada_antecipada=1 "
+            "e elitismo=1."
         ),
     )
 

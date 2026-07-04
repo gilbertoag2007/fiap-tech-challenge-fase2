@@ -209,7 +209,7 @@ def gerar_populacao_aleatoria(
  
  
 # =============================================================================
-# Operadores genéticos: Crossover
+# Operadores genéticos: Crossover OX
 # =============================================================================
 
 def cruzamento_ox(parent1: Individuo, parent2: Individuo, partida: Cidade) -> Individuo:

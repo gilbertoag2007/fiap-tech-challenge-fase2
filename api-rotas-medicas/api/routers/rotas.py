@@ -26,6 +26,8 @@ def calcular_rota(request: RotasRequest) -> dict[str, Any]:
             tipo_mutacao=request.tipo_mutacao,
             usar_2opt=request.usar_2opt,
             tipo_inicializacao=request.tipo_inicializacao,
+            usar_parada_antecipada=request.usar_parada_antecipada,
+            paciencia_parada_antecipada=request.paciencia_parada_antecipada,
         )
     except ValueError as e:
         return JSONResponse(status_code=400, content={"erro": str(e)})

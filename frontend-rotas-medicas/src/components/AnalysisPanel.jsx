@@ -23,6 +23,8 @@ export default function AnalysisPanel({ geoJson }) {
     total_cidades = 0,
     historico_evolucao = [],
     features = [],
+    parou_antecipadamente = false,
+    epocas_executadas = null,
   } = geoJson
 
   useEffect(() => {
@@ -130,6 +132,13 @@ export default function AnalysisPanel({ geoJson }) {
           </p>
           <span className="text-[9px] text-slate-400">por época</span>
         </div>
+        {parou_antecipadamente && (
+          <div className="mb-2 flex items-center gap-1.5 bg-amber-50 border border-amber-200 rounded-md px-2 py-1">
+            <span className="text-[9px] text-amber-700 font-medium">
+              ⏹ Parada antecipada na época {epocas_executadas} — sem melhora na aptidão.
+            </span>
+          </div>
+        )}
         {historico_evolucao.length > 0 ? (
           <div style={{ height: 150 }}>
             <canvas ref={chartRef} />

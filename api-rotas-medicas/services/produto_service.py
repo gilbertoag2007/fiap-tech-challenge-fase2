@@ -61,10 +61,12 @@ class ProdutoService:
 
         Estratégia em duas camadas:
         1. Substring bidirecional exata (ex.: "seringa" encontra "Seringa Descartável").
-        2. Prefixo por palavras: para cada palavra significativa (> 2 chars) do termo,
-           verifica se ela é prefixo de alguma palavra do nome ou vice-versa. Isso resolve
-           flexões como "vacinas" encontrando "Vacina da Covid" (pt="vacinas", pn="vacina"
-           → "vacinas".startswith("vacina") == True).
+        2. Prefixo por palavras: TODA palavra significativa (> 2 chars) do termo de busca
+           precisa corresponder, por prefixo em qualquer direção, a alguma palavra do nome
+           do produto. Isso resolve flexões como "vacinas" encontrando "Vacina da Covid"
+           (pt="vacinas", pn="vacina" → "vacinas".startswith("vacina") == True), sem permitir
+           que uma única palavra genérica em comum (ex.: "vacina") faça termos mais específicos
+           como "vacina covid" corresponderem a produtos não relacionados como "Vacina da Gripe".
 
         Parâmetros
         ----------
@@ -76,11 +78,12 @@ class ProdutoService:
         def _corresponde(nome_lower: str) -> bool:
             if busca in nome_lower or nome_lower in busca:
                 return True
+            if not palavras_busca:
+                return False
             palavras_nome = [w for w in nome_lower.split() if len(w) > 2]
-            return any(
-                pt.startswith(pn) or pn.startswith(pt)
+            return all(
+                any(pt.startswith(pn) or pn.startswith(pt) for pn in palavras_nome)
                 for pt in palavras_busca
-                for pn in palavras_nome
             )
 
         return [p for p in self._produtos if _corresponde(p.nome.lower())]

@@ -95,7 +95,7 @@ frontend-rotas-medicas/
         ├── Sidebar.jsx              # Sidebar escura com logo e navegação
         ├── RouteForm.jsx            # Formulário com todos os parâmetros do RotasRequest (com tooltips explicativos)
         ├── MapView.jsx              # Mapa Leaflet com marcadores numerados e polilinha da rota
-        ├── AnalysisPanel.jsx        # Painel de resultado: cards-resumo, gráfico de evolução (Chart.js) e lista de cidades
+        ├── AnalysisPanel.jsx        # Painel de resultado: cards-resumo, gráficos de evolução/diagnóstico (Chart.js) e lista de cidades
         └── MedicalIllustration.jsx  # SVG ilustrativo exibido antes de gerar a rota
 ```
 
@@ -106,7 +106,7 @@ frontend-rotas-medicas/
 | Framework | React 18 + Vite 5 |
 | Estilo | Tailwind CSS 3 |
 | Mapa | Leaflet.js (vanilla, sem react-leaflet) |
-| Gráficos | Chart.js (gráfico de evolução da distância por época) |
+| Gráficos | Chart.js (evolução da distância; aptidão melhor/média/pior + diversidade da população) |
 | HTTP | `fetch` nativo com proxy Vite |
 | Ícones | SVGs inline |
 
@@ -126,8 +126,15 @@ MapView renderiza:
     - Legenda no canto inferior esquerdo
 
 AnalysisPanel renderiza:
-    - Cards-resumo: total de cidades, distância (km), aptidão final
+    - Badge no cabeçalho: "✓ Válida"/"⚠ Inválida" conforme `rota_valida`
+    - Cards-resumo: total de cidades, distância (km), aptidão final, total de
+      avaliações de aptidão (total_avaliacoes_aptidao)
+    - Comparativo "Posição Média por Prioridade": barras P1 (vermelho) vs P2 (azul)
+      com a posição média de cada uma em % da rota — evidencia por contraste que a
+      bonificação de prioridade antecipa as entregas P1
     - Gráfico de evolução da distância por época (historico_evolucao)
+    - Gráfico de aptidão melhor/média/pior por época + diversidade da população
+      (eixo secundário, %) — diagnóstico de convergência prematura
     - Aviso de parada antecipada, se `parou_antecipadamente=true`
     - Lista ordenada das cidades da rota com produto/prioridade
 ```
@@ -169,11 +176,41 @@ Validações client-side em `RouteForm.jsx`: mensagem entre 20–500 caracteres 
   "km_total": 0.0,
   "aptidao_final": 0.0,
   "total_cidades": 0,
-  "historico_evolucao": [ {"epoca": 0, "distancia_km": 0.0, "aptidao": 0.0} ],
+  "historico_evolucao": [
+    {
+      "epoca": 0, "distancia_km": 0.0, "aptidao": 0.0,
+      "aptidao_media": 0.0, "aptidao_pior": 0.0, "diversidade": 0.0
+    }
+  ],
   "epocas_executadas": 0,
-  "parou_antecipadamente": false
+  "parou_antecipadamente": false,
+  "total_avaliacoes_aptidao": 0,
+  "rota_valida": true,
+  "cidades_prioridade_1": 0,
+  "posicao_media_prioridade_1_percentual": null,
+  "cidades_prioridade_2": 0,
+  "posicao_media_prioridade_2_percentual": null
 }
 ```
+
+Cada ponto de `historico_evolucao` é amostrado a cada N épocas, onde N vem de
+`RotaService._calcular_intervalo_amostra`: 10% de `epocas` quando a parada antecipada está
+desativada (execução sempre completa), ou uma fração da paciência (`paciencia_parada_antecipada // 3`)
+quando ela está ativa — evitando que uma parada antecipada precoce (comum) resulte em 0 ou 1
+ponto no histórico, insuficiente para o frontend desenhar uma linha de evolução. Cada ponto
+traz, além do melhor indivíduo (`distancia_km`, `aptidao`): `aptidao_media` e `aptidao_pior`
+(estatísticas da população inteira naquele ponto — ver `calcular_estatisticas_populacao`) e
+`diversidade` (proporção 0.0–1.0 de arestas distintas em uso pela população, para diagnosticar
+convergência prematura). `total_avaliacoes_aptidao` é o número total de indivíduos novos
+(filhos) gerados e avaliados ao longo de toda a execução.
+
+`rota_valida` é o resultado de `melhor.is_valido()` sobre o indivíduo final (confirmação de
+integridade do cromossomo). `cidades_prioridade_N`/`posicao_media_prioridade_N_percentual`
+(N=1 ou 2) vêm de `RotaService._diagnostico_prioridade`: medem a posição média de cada
+prioridade na rota (0% = início, 100% = fim). Só prioridade 1 recebe bônus posicional na
+aptidão (ver `Individuo._bonificacao_prioridade`) — a prioridade 2 é calculada apenas como
+contraponto, para evidenciar por contraste que a bonificação está de fato antecipando as
+entregas de prioridade 1. O percentual é `null` quando não há cidades daquela prioridade na rota.
 
 Cada `Feature` traz em `properties`: `ordem_visita`, `cidade`, `uf`, `regiao_tradicional`, `produto`, `prioridade`.
 
@@ -239,7 +276,7 @@ melhor Individuo → GeoJSON FeatureCollection + historico_evolucao + epocas_exe
 - `aptidao = distancia_total - bonificacao_prioridade()` — **menor aptidão ainda é melhor** (convenção de custo/minimização, não a "fitness" darwinista clássica — mantenha consistente em toda comparação/seleção)
 - `_BONIFICACAO_POR_ANTECIPACAO = 100.0` — bônus subtraído da aptidão por cidade de prioridade 1 ("vacina"), ponderado pela posição na rota (quanto mais cedo, maior o bônus); ordem de grandeza pensada para orientar a seleção sem sobrepor economias reais de distância
 - Toda nova regra de priorização de rota segue o padrão: adicionar método `_bonificacao_X()` (ou `_penalidade_X()`, se for o caso) e compor em `calcular_aptidao()`
-- `is_valido()` — verifica integridade do cromossomo (hoje só é usada pela suíte de testes, não em runtime)
+- `is_valido()` — verifica integridade do cromossomo; usada pela suíte de testes e, em runtime, por `RotaService.calcular_rota` para popular `rota_valida` na resposta
 - `rota_nomes()` — retorna lista de nomes na ordem de visita (usado no log final de `RotaService`)
 - `copiar()` — cópia independente do indivíduo (usada pelos operadores em `algoritmos_geneticos.py`)
 - **Sem lógica genética nesta classe**
@@ -275,8 +312,17 @@ melhor Individuo → GeoJSON FeatureCollection + historico_evolucao + epocas_exe
 - `grau_mutacao` recebido em % (0–10), convertido para probabilidade (0.0–1.0) antes de chamar os operadores
 - Elitismo: quando `elitismo=1`, sempre recalcula a elite real via `seleciona_melhores_individuos`, independente de `tipo_selecao` (evita que o torneio, estocástico, perca o melhor indivíduo entre gerações)
 - Parada antecipada: só ativa quando `elitismo=1` (aptidão não-crescente garantida); rastreia a melhor aptidão a cada época e encerra o loop via `break` ao atingir `paciencia_parada_antecipada` sem melhora
+- `_calcular_intervalo_amostra` define a cada quantas épocas amostrar o `historico_evolucao`: 10% de `epocas` sem parada antecipada, ou `paciencia_parada_antecipada // 3` com ela ativa (garante pontos suficientes mesmo em paradas precoces, comuns na prática)
+- A cada ponto de amostra, além do melhor indivíduo, calcula `aptidao_media`/`aptidao_pior`/`diversidade` da população via `ag.calcular_estatisticas_populacao` e anexa ao `historico_evolucao`
+- Conta `total_avaliacoes_aptidao` — incrementado a cada filho novo gerado no laço interno (não conta os indivíduos da elite, que são preservados sem nova avaliação)
+- Ao final, `_diagnostico_prioridade(melhor)` mede a posição média de prioridade 1 e 2 na
+  rota (evidência, por contraste, de que a bonificação de `Individuo._bonificacao_prioridade`
+  antecipa a prioridade 1 — só ela recebe bônus posicional, prioridade 2 é calculada apenas
+  como contraponto comparativo)
 - Imprime progresso a cada 10% das épocas no stdout (`historico_evolucao`), mais o log de parada antecipada quando aplicável
-- Retorna também `epocas_executadas` e `parou_antecipadamente` no payload de resposta
+- Retorna também `epocas_executadas`, `parou_antecipadamente`, `total_avaliacoes_aptidao`,
+  `rota_valida` (via `Individuo.is_valido()`), `cidades_prioridade_1`/`cidades_prioridade_2` e
+  `posicao_media_prioridade_1_percentual`/`posicao_media_prioridade_2_percentual` no payload de resposta
 
 ### `services/algoritmos_geneticos.py`
 - **Inicialização**: `gerar_individuo_aleatorio(partida, cidades)`; `gerar_populacao_aleatoria(quantidade, partida, cidades, melhores_individuos=None)` (ajusta `quantidade` para `min(quantidade, (N-1)!)`); `gerar_individuo_vizinho_mais_proximo(partida, cidades)` — heurística gulosa
@@ -284,6 +330,7 @@ melhor Individuo → GeoJSON FeatureCollection + historico_evolucao + epocas_exe
 - **Crossover**: `cruzamento_ox(parent1, parent2, partida)` (Order Crossover); `cruzamento_erx(parent1, parent2, partida)` (Edge Recombination — preserva arestas, melhor para TSP puro)
 - **Mutação**: `mutacao_simples` (swap adjacente), `mutacao_inversao` (inverte segmento), `mutacao_or_opt` (realoca segmento de 1–3 cidades)
 - **Busca local**: `busca_local_2opt(individuo, max_passagens=1)` — O(n²) por passagem; para poucas cidades pode convergir ao ótimo em poucas épocas, então reduza `tamanho_populacao`/`epocas` ao ativar
+- **Diagnóstico**: `calcular_estatisticas_populacao(populacao)` — retorna `aptidao_media`, `aptidao_pior` e `diversidade` (proporção de arestas distintas em uso pela população, O(pop×n)); usado por `RotaService` a cada ponto de amostra do `historico_evolucao`
 
 ---
 

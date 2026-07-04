@@ -26,6 +26,7 @@ from models.cidade import Cidade
 from models.individuo import Individuo
 from models.produto import Produto
 from services import algoritmos_geneticos as ag
+from services.rota_service import RotaService
 
 
 # ---------------------------------------------------------------------------
@@ -236,6 +237,108 @@ def test_busca_local_2opt_nunca_piora_e_mantem_validade():
     _assert_individuo_valido(otimizado, cidades, partida)
     otimizado.calcular_aptidao()
     assert otimizado.distancia <= dist_antes + 1e-6
+
+
+# ---------------------------------------------------------------------------
+# Métricas de diagnóstico da população
+# ---------------------------------------------------------------------------
+
+def test_calcular_estatisticas_populacao_media_e_pior_consistentes():
+    cidades = _cidades(8)
+    partida = cidades[0]
+    pop = ag.gerar_populacao_aleatoria(10, partida, cidades)
+    stats = ag.calcular_estatisticas_populacao(pop)
+
+    aptidoes = [ind.calcular_aptidao() for ind in pop]
+    assert stats["aptidao_pior"] == max(aptidoes)
+    assert stats["aptidao_media"] == pytest.approx(sum(aptidoes) / len(aptidoes))
+    # pior >= média >= melhor, sob a convenção de minimização
+    assert stats["aptidao_pior"] >= stats["aptidao_media"] >= min(aptidoes)
+
+
+def test_calcular_estatisticas_populacao_diversidade_minima_quando_identica():
+    cidades = _cidades(8)
+    partida = cidades[0]
+    individuo = ag.gerar_individuo_aleatorio(partida, cidades)
+    # população inteira com o mesmo cromossomo (mesmas arestas) — diversidade no piso
+    # teórico: só as n arestas do próprio ciclo, sobre o máximo de arestas possível (C(n,2)).
+    pop = [individuo.copiar() for _ in range(5)]
+    stats = ag.calcular_estatisticas_populacao(pop)
+    n = len(cidades)
+    esperado = n / (n * (n - 1) / 2)
+    assert stats["diversidade"] == pytest.approx(esperado)
+
+
+def test_calcular_estatisticas_populacao_diversidade_entre_zero_e_um():
+    cidades = _cidades(8)
+    partida = cidades[0]
+    pop = ag.gerar_populacao_aleatoria(20, partida, cidades)
+    stats = ag.calcular_estatisticas_populacao(pop)
+    assert 0.0 <= stats["diversidade"] <= 1.0
+
+
+# ---------------------------------------------------------------------------
+# Diagnóstico de priorização (RotaService._diagnostico_prioridade)
+# ---------------------------------------------------------------------------
+
+def test_diagnostico_prioridade_cidade_prioridade_1_logo_apos_partida():
+    # partida (sem produto) + 1 cidade prioridade 1 na 1ª posição + 1 prioridade 2 na última
+    partida = Cidade(0, "Partida", "SP", 0.0, 0.0, "Sudeste", None)
+    c1 = Cidade(1, "Cidade1", "SP", 0.5, 0.3, "Sudeste", Produto(1, "Vacina", 1))
+    c2 = Cidade(2, "Cidade2", "SP", 1.0, 0.6, "Sudeste", Produto(2, "Insumo", 2))
+    individuo = Individuo(partida, [partida, c1, c2, partida])
+
+    diagnostico = RotaService()._diagnostico_prioridade(individuo)
+    assert diagnostico["cidades_prioridade_1"] == 1
+    # c1 está na ordem_visita=2 (partida=1, c1=2, c2=3) de um total de 3 cidades
+    assert diagnostico["posicao_media_prioridade_1_percentual"] == pytest.approx((2 / 3) * 100, abs=0.1)
+    # c2 (prioridade 2) está na ordem_visita=3 — mais tarde na rota que a prioridade 1
+    assert diagnostico["cidades_prioridade_2"] == 1
+    assert diagnostico["posicao_media_prioridade_2_percentual"] == pytest.approx((3 / 3) * 100, abs=0.1)
+    assert diagnostico["posicao_media_prioridade_2_percentual"] > diagnostico["posicao_media_prioridade_1_percentual"]
+
+
+def test_diagnostico_prioridade_sem_cidades_prioridade_1_retorna_none():
+    partida = Cidade(0, "Partida", "SP", 0.0, 0.0, "Sudeste", None)
+    c1 = Cidade(1, "Cidade1", "SP", 0.5, 0.3, "Sudeste", Produto(1, "Insumo", 2))
+    individuo = Individuo(partida, [partida, c1, partida])
+
+    diagnostico = RotaService()._diagnostico_prioridade(individuo)
+    assert diagnostico["cidades_prioridade_1"] == 0
+    assert diagnostico["posicao_media_prioridade_1_percentual"] is None
+    assert diagnostico["cidades_prioridade_2"] == 1
+    assert diagnostico["posicao_media_prioridade_2_percentual"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Intervalo de amostragem do historico_evolucao (RotaService._calcular_intervalo_amostra)
+# ---------------------------------------------------------------------------
+
+def test_intervalo_amostra_sem_parada_antecipada_usa_10_por_cento_das_epocas():
+    intervalo = RotaService()._calcular_intervalo_amostra(
+        epocas=1000, parada_antecipada_ativa=False, paciencia_parada_antecipada=30
+    )
+    assert intervalo == 100
+
+
+def test_intervalo_amostra_com_parada_antecipada_usa_fracao_da_paciencia():
+    # Caso real que motivou o ajuste: epocas=1000, paciência=30 — sem a correção,
+    # o intervalo seria 100 e uma parada antecipada por volta da época 103
+    # produziria só 1 ponto no histórico (insuficiente para desenhar uma linha).
+    intervalo = RotaService()._calcular_intervalo_amostra(
+        epocas=1000, parada_antecipada_ativa=True, paciencia_parada_antecipada=30
+    )
+    assert intervalo == 10
+    # Uma parada na época 103 deve render ao menos 3 pontos amostrados antes dela.
+    pontos_antes_da_parada = 103 // intervalo
+    assert pontos_antes_da_parada >= 3
+
+
+def test_intervalo_amostra_com_parada_antecipada_nunca_e_menor_que_1():
+    intervalo = RotaService()._calcular_intervalo_amostra(
+        epocas=50, parada_antecipada_ativa=True, paciencia_parada_antecipada=1
+    )
+    assert intervalo == 1
 
 
 # ---------------------------------------------------------------------------

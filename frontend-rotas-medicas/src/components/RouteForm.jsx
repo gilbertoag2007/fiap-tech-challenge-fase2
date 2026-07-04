@@ -140,6 +140,53 @@ function MutacaoCards({ form, onChange }) {
   )
 }
 
+/** Ícone + popover com as restrições que o AG sempre respeita ao montar a rota */
+function RestricoesInfo() {
+  return (
+    <div className="relative group ml-auto">
+      <button
+        type="button"
+        className="w-5 h-5 rounded-full bg-white/70 hover:bg-white flex items-center justify-center transition-colors flex-shrink-0"
+        aria-label="Restrições respeitadas pelo algoritmo ao gerar a rota"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1D6AE8" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+      </button>
+
+      <div className="invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150 absolute right-0 top-full mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-lg p-3 z-20 text-left">
+        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wide mb-1.5">
+          Regras rígidas (sempre garantidas)
+        </p>
+        <ul className="space-y-1 mb-2.5">
+          <li className="text-[10px] text-slate-600 leading-snug flex gap-1.5">
+            <span className="text-emerald-500 font-bold flex-shrink-0">✓</span>
+            Todas as cidades da mensagem são visitadas.
+          </li>
+          <li className="text-[10px] text-slate-600 leading-snug flex gap-1.5">
+            <span className="text-emerald-500 font-bold flex-shrink-0">✓</span>
+            Nenhuma cidade é visitada mais de uma vez.
+          </li>
+          <li className="text-[10px] text-slate-600 leading-snug flex gap-1.5">
+            <span className="text-emerald-500 font-bold flex-shrink-0">✓</span>
+            Rota circular: a cidade de partida também é o destino final.
+          </li>
+        </ul>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">
+          Critério de otimização (não é uma regra rígida)
+        </p>
+        <p className="text-[10px] text-slate-500 leading-snug flex gap-1.5">
+          <span className="text-blue-500 font-bold flex-shrink-0">~</span>
+          Cidades com produtos de maior prioridade (vacinas) recebem bônus na aptidão por
+          aparecerem mais cedo na rota — tendem a ser visitadas primeiro, mas isso pode ceder
+          espaço a uma rota com economia de distância maior.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 /** Toggle switch para o 2-opt e parada antecipada */
 function Toggle({ label, desc, field, form, onChange, warn, disabled, disabledReason, hint }) {
   const checked = form[field] === 1
@@ -206,6 +253,7 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
 
   const handleClear = () => {
     setForm(DEFAULTS)
+    setMensagemErro(null)
     onClear()
   }
 
@@ -284,12 +332,13 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
       </div>
 
       {/* Algoritmos Genéticos */}
-      <div className="border border-slate-200 rounded-xl overflow-hidden">
-        <div className="bg-gradient-to-r from-slate-50 to-blue-50 px-3 py-2 border-b border-slate-200 flex items-center gap-2">
+      <div className="border border-slate-200 rounded-xl">
+        <div className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-t-xl px-3 py-2 border-b border-slate-200 flex items-center gap-2">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#1D6AE8" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
           </svg>
           <span className="text-xs font-bold text-slate-700 tracking-wide">ALGORITMOS GENÉTICOS</span>
+          <RestricoesInfo />
         </div>
 
         <div className="p-3 flex flex-col gap-3">

@@ -112,12 +112,15 @@ class RotaService:
 
         # --- Loop evolucionário ---
         historico_evolucao: list[dict[str, Any]] = []
-        intervalo_amostra = max(1, epocas // 10)
+        intervalo_amostra = self._calcular_intervalo_amostra(
+            epocas, parada_antecipada_ativa, paciencia_parada_antecipada
+        )
 
         melhor_aptidao_referencia: float | None = None
         epocas_sem_melhora = 0
         epocas_executadas = 0
         parou_antecipadamente = False
+        total_avaliacoes_aptidao = 0
 
         for epoca in range(epocas):
             epocas_executadas = epoca + 1
@@ -167,6 +170,7 @@ class RotaService:
                     filho = ag.busca_local_2opt(filho)
 
                 nova_populacao.append(filho)
+                total_avaliacoes_aptidao += 1
 
             populacao = nova_populacao
 
@@ -178,15 +182,21 @@ class RotaService:
                 melhor_epoca = ag.seleciona_melhores_individuos(populacao, 1)[0]
 
             if eh_ponto_amostra:
+                stats_populacao = ag.calcular_estatisticas_populacao(populacao)
                 historico_evolucao.append({
                     "epoca": epoca + 1,
                     "distancia_km": round(melhor_epoca.distancia, 2),
                     "aptidao": round(melhor_epoca.aptidao, 2),
+                    "aptidao_media": round(stats_populacao["aptidao_media"], 2),
+                    "aptidao_pior": round(stats_populacao["aptidao_pior"], 2),
+                    "diversidade": round(stats_populacao["diversidade"], 4),
                 })
                 print(
                     f"[RotaService] época {epoca + 1}/{epocas} | "
                     f"melhor distância={melhor_epoca.distancia:.2f} km | "
-                    f"aptidão={melhor_epoca.aptidao:.2f}"
+                    f"aptidão (melhor/média/pior)={melhor_epoca.aptidao:.2f}/"
+                    f"{stats_populacao['aptidao_media']:.2f}/{stats_populacao['aptidao_pior']:.2f} | "
+                    f"diversidade={stats_populacao['diversidade']:.2%}"
                 )
 
             if parada_antecipada_ativa:
@@ -205,9 +215,12 @@ class RotaService:
                     break
 
         melhor = ag.seleciona_melhores_individuos(populacao, 1)[0]
+        rota_valida = melhor.is_valido()
+        diagnostico_prioridade = self._diagnostico_prioridade(melhor)
         print(
             f"[RotaService] Rota final: {melhor.rota_nomes()} | "
-            f"distância={melhor.distancia:.2f} km | aptidão={melhor.aptidao:.2f}"
+            f"distância={melhor.distancia:.2f} km | aptidão={melhor.aptidao:.2f} | "
+            f"válida={rota_valida} | {diagnostico_prioridade}"
         )
 
         return {
@@ -219,7 +232,44 @@ class RotaService:
             "historico_evolucao": historico_evolucao,
             "epocas_executadas": epocas_executadas,
             "parou_antecipadamente": parou_antecipadamente,
+            "total_avaliacoes_aptidao": total_avaliacoes_aptidao,
+            "rota_valida": rota_valida,
+            **diagnostico_prioridade,
         }
+
+    # ---------------------------------------------------------------------------
+    # Auxiliar: intervalo de amostragem do historico_evolucao
+    # ---------------------------------------------------------------------------
+
+    def _calcular_intervalo_amostra(
+        self, epocas: int, parada_antecipada_ativa: bool, paciencia_parada_antecipada: int
+    ) -> int:
+        """
+        Define a cada quantas épocas um ponto é registrado em `historico_evolucao`.
+
+        Sem parada antecipada, a execução sempre completa `epocas` gerações, então
+        amostrar a 10% do total garante ~10 pontos bem distribuídos.
+
+        Com parada antecipada ativa, a execução pode encerrar bem antes de `epocas`
+        — amostrar a 10% de `epocas` arriscaria produzir 0 ou 1 ponto (insuficiente
+        para o frontend desenhar uma linha de evolução) sempre que a parada disparar
+        cedo, o que é comum. Nesse caso, a amostragem usa uma fração da paciência
+        (independente de `epocas`), garantindo ao menos ~3 pontos dentro da própria
+        janela de estagnação que antecede qualquer parada.
+
+        Parâmetros
+        ----------
+        epocas : int
+        parada_antecipada_ativa : bool
+        paciencia_parada_antecipada : int
+
+        Retorna
+        -------
+        int — intervalo em número de épocas entre cada ponto amostrado.
+        """
+        if parada_antecipada_ativa:
+            return max(1, paciencia_parada_antecipada // 3)
+        return max(1, epocas // 10)
 
     # ---------------------------------------------------------------------------
     # Auxiliar: conversão do melhor Individuo para features GeoJSON
@@ -261,3 +311,56 @@ class RotaService:
                 }
             )
         return features
+
+    # ---------------------------------------------------------------------------
+    # Auxiliar: diagnóstico da efetividade da bonificação de prioridade
+    # ---------------------------------------------------------------------------
+
+    def _diagnostico_prioridade(self, melhor: Individuo) -> dict[str, Any]:
+        """
+        Mede se as cidades de prioridade 1 (alta urgência) de fato ficaram
+        posicionadas mais cedo na rota final — evidência de que a bonificação
+        de `Individuo._bonificacao_prioridade` está cumprindo seu propósito,
+        não apenas otimizando distância. A posição média de prioridade 2
+        também é calculada, como contraponto: como só prioridade 1 recebe
+        bônus posicional na aptidão (prioridade 2 compete apenas pela
+        distância, sem incentivo de posição), o contraste entre as duas
+        médias evidencia melhor o efeito da bonificação do que olhar cada
+        uma isoladamente.
+
+        Usa a mesma numeração de `ordem_visita` de `_individuo_para_features`
+        (a partida ocupa a posição 1) para que o resultado seja diretamente
+        comparável à lista de cidades exibida ao usuário.
+
+        Parâmetros
+        ----------
+        melhor : Individuo
+            Melhor indivíduo encontrado após calcular_aptidao().
+
+        Retorna
+        -------
+        dict com, para cada prioridade (1 e 2):
+        - "cidades_prioridade_N": int — quantidade de cidades daquela prioridade na rota.
+        - "posicao_media_prioridade_N_percentual": float | None — posição média
+          (ordem_visita) das cidades daquela prioridade, normalizada em % do total
+          de cidades da rota (0% = logo no início, 100% = no fim). None se não
+          houver cidades daquela prioridade na rota.
+        """
+        total_cidades = len(melhor.cromossomo) - 1
+        posicoes_por_prioridade: dict[int, list[int]] = {1: [], 2: []}
+        for ordem, cidade in enumerate(melhor.cromossomo[:-1], start=1):
+            if cidade.produto and cidade.produto.prioridade in posicoes_por_prioridade:
+                posicoes_por_prioridade[cidade.produto.prioridade].append(ordem)
+
+        def _posicao_media_percentual(posicoes: list[int]) -> float | None:
+            if not posicoes or total_cidades == 0:
+                return None
+            posicao_media = sum(posicoes) / len(posicoes)
+            return round((posicao_media / total_cidades) * 100, 1)
+
+        return {
+            "cidades_prioridade_1": len(posicoes_por_prioridade[1]),
+            "posicao_media_prioridade_1_percentual": _posicao_media_percentual(posicoes_por_prioridade[1]),
+            "cidades_prioridade_2": len(posicoes_por_prioridade[2]),
+            "posicao_media_prioridade_2_percentual": _posicao_media_percentual(posicoes_por_prioridade[2]),
+        }

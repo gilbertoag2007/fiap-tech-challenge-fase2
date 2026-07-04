@@ -16,6 +16,7 @@ export default function App() {
   const [geoJson, setGeoJson] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [formKey, setFormKey] = useState(0)
 
   const handleSubmit = async (formData) => {
     setLoading(true)
@@ -41,13 +42,23 @@ export default function App() {
     setError(null)
   }
 
+  const handleNovaRota = () => {
+    setGeoJson(null)
+    setError(null)
+    // Força o RouteForm a remontar do zero, resetando também seu estado interno
+    // (campos digitados, erro de validação da mensagem etc.) — o Sidebar não tem
+    // acesso direto a esse estado, então a troca de key é o jeito mais simples
+    // de replicar o mesmo efeito do botão "Limpar" a partir daqui.
+    setFormKey(k => k + 1)
+  }
+
   return (
     <div
       className="flex flex-col h-screen overflow-hidden bg-slate-100"
       style={{ fontFamily: "'Inter', system-ui, sans-serif" }}
     >
       {/* Top navigation bar */}
-      <Sidebar />
+      <Sidebar onNovaRota={handleNovaRota} loading={loading} />
 
       {/* Main content row */}
       <div className="flex flex-1 overflow-hidden">
@@ -55,6 +66,7 @@ export default function App() {
         {/* Form panel — fixed width, scrollable */}
         <div className="flex-shrink-0 overflow-y-auto border-r border-slate-200 bg-white shadow-sm" style={{ width: 460 }}>
           <RouteForm
+            key={formKey}
             onSubmit={handleSubmit}
             onClear={handleClear}
             loading={loading}

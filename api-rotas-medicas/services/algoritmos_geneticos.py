@@ -658,7 +658,68 @@ def mutacao_inversao(individuo: Individuo, probabilidade_mutacao: float) -> Indi
     # Inverter o segmento entre indice1 e indice2 (inclusivo)
     individuo_mutado.cromossomo[indice1:indice2 + 1] = \
         reversed(individuo_mutado.cromossomo[indice1:indice2 + 1])
-    
+
     return individuo_mutado
- 
- 
+
+
+# =============================================================================
+# Métricas de diagnóstico da população
+# =============================================================================
+
+def calcular_estatisticas_populacao(populacao: list[Individuo]) -> dict[str, float]:
+    """
+    Calcula métricas agregadas da população para diagnóstico da execução do AG.
+
+    Complementa `seleciona_melhores_individuos` (que só olha o melhor indivíduo):
+    aqui o objetivo é caracterizar a população inteira num dado momento, para
+    permitir diagnosticar convergência prematura (perda de diversidade antes da
+    aptidão estabilizar) e o comportamento coletivo da busca, não só do vencedor.
+
+    Parâmetros
+    ----------
+    populacao : list[Individuo]
+
+    Retorna
+    -------
+    dict com:
+    - "aptidao_media": média de `aptidao` (mesma convenção de minimização) entre
+      todos os indivíduos da população.
+    - "aptidao_pior": MAIOR valor de `aptidao` da população (pior sob a convenção
+      de minimização — não confundir com "menor").
+    - "diversidade": proporção de arestas distintas (segmentos entre cidades
+      consecutivas na rota, sem direção) em uso pela população em relação ao
+      máximo teoricamente possível dado o tamanho da população e do problema.
+      Varia de 0.0 (população inteira compartilha a mesma rota) a 1.0 (arestas
+      tão variadas quanto o espaço de busca permite). Calculada em uma única
+      passagem O(pop×n) — não faz comparação par a par entre indivíduos
+      (O(pop²)), que seria custosa demais para populações grandes.
+
+    Notas
+    -----
+    Chama `calcular_aptidao()` em cada indivíduo (efeito colateral inofensivo:
+    recalcula os mesmos valores caso já tenham sido computados nesta geração).
+    """
+    aptidoes = [ind.calcular_aptidao() for ind in populacao]
+    aptidao_media = sum(aptidoes) / len(aptidoes)
+    aptidao_pior = max(aptidoes)
+
+    arestas_vistas: set[frozenset] = set()
+    n_cidades = 0
+    for ind in populacao:
+        cromossomo = ind.cromossomo
+        n_cidades = len(cromossomo) - 1
+        for i in range(n_cidades):
+            arestas_vistas.add(frozenset((cromossomo[i].cod_ibge, cromossomo[i + 1].cod_ibge)))
+
+    if n_cidades > 1:
+        maximo_possivel = min(len(populacao) * n_cidades, n_cidades * (n_cidades - 1) // 2)
+    else:
+        maximo_possivel = 0
+
+    diversidade = len(arestas_vistas) / maximo_possivel if maximo_possivel else 0.0
+
+    return {
+        "aptidao_media": aptidao_media,
+        "aptidao_pior": aptidao_pior,
+        "diversidade": diversidade,
+    }

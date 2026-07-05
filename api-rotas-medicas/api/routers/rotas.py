@@ -1,12 +1,13 @@
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
+from api.dependencies import verificar_token
 from api.schemas.rotas import RotasRequest
 from services.rota_service import RotaService
 
-router = APIRouter(prefix="/rotas", tags=["Rotas"])
+router = APIRouter(prefix="/rotas", tags=["Rotas"], dependencies=[Depends(verificar_token)])
 
 
 @router.post("/", response_model=dict[str, Any])

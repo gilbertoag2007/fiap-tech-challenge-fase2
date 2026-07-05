@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import Settings
-from api.routers import rotas
+from api.routers import auth, rotas
 
 app = FastAPI(
     title="API — Rotas Médicas",
@@ -18,6 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth.router)
 app.include_router(rotas.router)
 
 

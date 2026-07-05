@@ -20,9 +20,9 @@ O AG é configurável pelo usuário: estratégia de seleção (truncamento/torne
 
 ```bash
 # --- Backend (api-rotas-medicas/) ---
-pip install fastapi uvicorn pydantic openai python-dotenv pytest
+pip install -r requeriments.txt
 uvicorn main:app --reload          # sobe em http://localhost:8000
-pytest tests/ -q                   # roda a suíte automatizada (services/algoritmos_geneticos.py)
+pytest tests/ -q                   # roda a suíte automatizada completa (AG + autenticação)
 
 # --- Frontend (frontend-rotas-medicas/) ---
 npm install                        # instalar dependências (apenas na primeira vez)
@@ -35,9 +35,13 @@ npm run build                      # gera build de produção em dist/
 ```
 OPENAI_API_KEY=<sua-chave>
 MODELO_CHAT=gpt-4.1-mini
+AUTH_USUARIO=<usuario-de-acesso-ao-frontend>
+AUTH_SENHA=<senha-de-acesso-ao-frontend>
 ```
 
 `MODELO_CHAT` deve ser um modelo com suporte a function calling. Evite tiers "nano": a interpretação de mensagens compostas (múltiplos blocos região+produto, cidades fronteiriças por conhecimento próprio) exige recall factual e seguimento de instruções melhores que o tier mais barato oferece.
+
+`AUTH_USUARIO`/`AUTH_SENHA` são as credenciais fixas (usuário único) exigidas para acessar o formulário de rotas — ver seção de Autenticação.
 
 ---
 
@@ -51,9 +55,12 @@ api-rotas-medicas/
 ├── teste_services.py                # Script manual de fumaça dos services (não é a suíte automatizada)
 ├── requeriments.txt                 # Dependências pip
 ├── api/
+│   ├── dependencies.py               # verificar_token — dependência FastAPI que protege endpoints autenticados
 │   ├── routers/
-│   │   └── rotas.py                 # POST /rotas/ — executa o AG e retorna GeoJSON
+│   │   ├── auth.py                  # POST /auth/login e /auth/logout
+│   │   └── rotas.py                 # POST /rotas/ (protegido) — executa o AG e retorna GeoJSON
 │   └── schemas/
+│       ├── auth.py                  # LoginRequest / LoginResponse (Pydantic)
 │       └── rotas.py                 # RotasRequest (Pydantic) com validações
 ├── models/
 │   ├── cidade.py                    # Classe Cidade com Haversine
@@ -61,12 +68,14 @@ api-rotas-medicas/
 │   └── produto.py                   # Classe Produto com prioridade de entrega
 ├── services/
 │   ├── algoritmos_geneticos.py      # Operadores genéticos (inicialização, seleção, crossover, mutação, busca local)
+│   ├── auth_service.py              # Singleton — autenticação com usuário/senha fixos e tokens aleatórios em memória
 │   ├── cidade_service.py            # Singleton — carrega CSV do IBGE, consultas e montagem de rotas
 │   ├── produto_service.py           # Singleton — carrega CSV de produtos, consultas
 │   ├── llm_service.py               # Interpreta mensagem via ChatGPT (function calling)
 │   └── rota_service.py              # Orquestra LLM → AG → GeoJSON
 ├── tests/
-│   └── test_algoritmos_geneticos.py # Suíte pytest: unitários + integração combinatória (seleção x init x mutação x elitismo)
+│   ├── test_algoritmos_geneticos.py # Suíte pytest: unitários + integração combinatória (seleção x init x mutação x elitismo)
+│   └── test_auth_service.py         # Suíte pytest: autenticação, emissão/validação/expiração/revogação de token
 ├── data/
 │   ├── cidades.csv                  # Municípios brasileiros (IBGE): COD_IBGE, NOME, UF, LATITUDE, LONGITUDE, REGIAO_TRADICIONAL
 │   └── produtos.csv                 # Produtos: ID, NOME, PRIORIDADE
@@ -78,22 +87,36 @@ api-rotas-medicas/
 
 ---
 
+## Autenticação
+
+Mecanismo propositalmente simples: **um único usuário/senha fixos** (via `.env`) e **token aleatório mantido em memória** — sem banco de dados, sem múltiplas contas, sem JWT. Adequado ao escopo do projeto (uma aplicação de demonstração/avaliação acadêmica, não multi-tenant), mas **não é uma barreira de segurança forte**: a credencial precisa existir só como variável de ambiente na hospedagem (nunca commitada), nunca como string literal no código.
+
+- `POST /auth/login` — recebe `{"usuario", "senha"}`, compara com `Settings.AUTH_USUARIO`/`AUTH_SENHA`. Aplica um atraso fixo de 1s (`time.sleep`, no backend) em toda tentativa, sucesso ou falha — dificulta força bruta automatizada e evita vazar por timing se o usuário informado existe. Retorna `{"token", "expires_in"}` (token opaco de 32 bytes via `secrets.token_urlsafe`, validade de 30 minutos).
+- `POST /auth/logout` — revoga o token atual (requer `Authorization: Bearer <token>` válido).
+- `AuthService` (`auth_service` — singleton, `services/auth_service.py`): mantém `_tokens: dict[token, expira_em]` em memória. Reiniciar o processo da API invalida todas as sessões — aceitável dado o escopo (usuário único, sem persistência necessária).
+- `api/dependencies.py::verificar_token` — dependência do FastAPI que exige `Authorization: Bearer <token>` válido e não expirado; usada via `dependencies=[Depends(verificar_token)]` no router de `/rotas/` (protege todos os endpoints do router de uma vez, sem alterar a assinatura do handler).
+- Frontend: tela de login (`LoginForm.jsx`) é exibida sempre que não há sessão válida — nenhuma outra tela (formulário, mapa, análise) é renderizada até o login. Token, usuário informado e o instante de expiração ficam em `localStorage`; um `setTimeout` agendado no `App.jsx` força logout automático (com aviso "sessão expirada") exatamente no instante em que o token expiraria, mesmo sem o usuário interagir. Qualquer resposta `401` de `/rotas/` também força logout imediato, como rede de segurança adicional (cobre relógio incorreto, múltiplas abas, token revogado no backend etc.).
+- `Sidebar.jsx` exibe o nome do usuário logado e sua inicial (avatar) ao lado do botão de logout — puramente cosmético, já que há um único usuário fixo (sem ambiguidade sobre "quem" está logado).
+
+---
+
 ## Arquitetura de `frontend-rotas-medicas/`
 
 ```
 frontend-rotas-medicas/
 ├── index.html                       # Entrypoint HTML — carrega Inter font e o bundle React
 ├── package.json                     # Dependências: react, react-dom, leaflet, chart.js
-├── vite.config.js                   # Proxy /rotas /health → localhost:8000
+├── vite.config.js                   # Proxy /rotas /health /auth → localhost:8000
 ├── tailwind.config.js               # Configuração do Tailwind CSS
 ├── postcss.config.js                # PostCSS (Tailwind + Autoprefixer)
 └── src/
     ├── main.jsx                     # Bootstrap React — importa leaflet.css e index.css
-    ├── index.css                    # Tailwind directives + estilos globais + scrollbar
-    ├── App.jsx                      # Layout raiz: sidebar + painel de formulário + mapa + painel de análise
+    ├── index.css                    # Tailwind directives + estilos globais + scrollbar + animação fade-in-up
+    ├── App.jsx                      # Layout raiz + estado de autenticação (gate de login, token, expiração)
     └── components/
-        ├── Sidebar.jsx              # Sidebar escura com logo e navegação
-        ├── RouteForm.jsx            # Formulário com todos os parâmetros do RotasRequest (com tooltips explicativos)
+        ├── Sidebar.jsx              # Logo, "Nova Rota" (reseta para o estado inicial), nome do usuário e logout
+        ├── LoginForm.jsx            # Tela de login (usuário/senha) exibida sem sessão válida
+        ├── RouteForm.jsx            # Formulário com todos os parâmetros do RotasRequest (tooltips + popover de restrições do AG)
         ├── MapView.jsx              # Mapa Leaflet com marcadores numerados e polilinha da rota
         ├── AnalysisPanel.jsx        # Painel de resultado: cards-resumo, gráficos de evolução/diagnóstico (Chart.js) e lista de cidades
         └── MedicalIllustration.jsx  # SVG ilustrativo exibido antes de gerar a rota
@@ -113,8 +136,13 @@ frontend-rotas-medicas/
 ### Fluxo do frontend
 
 ```
+Sem sessão válida → LoginForm (usuário/senha)
+    │  POST /auth/login (proxy Vite → localhost:8000)
+    │  token + usuário + expiração salvos em localStorage
+    ▼
 Usuário preenche RouteForm (mensagem até 500 chars + parâmetros do AG)
-    │  POST /rotas/ (proxy Vite → localhost:8000)
+    │  POST /rotas/ (proxy Vite → localhost:8000, header Authorization: Bearer <token>)
+    │  401 (token ausente/expirado) → logout automático, volta para LoginForm
     ▼
 App.jsx recebe GeoJSON FeatureCollection + metadados de execução
     │  passa geoJson para MapView e AnalysisPanel
@@ -139,7 +167,9 @@ AnalysisPanel renderiza:
     - Lista ordenada das cidades da rota com produto/prioridade
 ```
 
-Validações client-side em `RouteForm.jsx`: mensagem entre 20–500 caracteres (contador + erro inline), e o toggle "Parada Antecipada" só fica habilitado quando o Elitismo está ativo (desabilitado com tooltip explicando o motivo).
+Validações client-side em `RouteForm.jsx`: mensagem entre 20–500 caracteres (contador + erro inline), e o toggle "Parada Antecipada" só fica habilitado quando o Elitismo está ativo (desabilitado com tooltip explicando o motivo). Um ícone/popover ao lado do título "Algoritmos Genéticos" explica as restrições rígidas do AG (todas as cidades visitadas uma vez, rota circular) separadas do critério de otimização não-rígido (antecipação de prioridade).
+
+Os botões "Nova Rota" (`Sidebar.jsx`) e "Limpar" (`RouteForm.jsx`) têm o mesmo efeito — zeram `geoJson`/erro e voltam à `MedicalIllustration` (com animação `fade-in-up`). Como o `Sidebar` não tem acesso ao estado interno do `RouteForm`, "Nova Rota" força isso incrementando um `formKey` em `App.jsx`, que é passado como `key` do `RouteForm` — a troca de `key` remonta o componente do zero, resetando também seus campos e erros de validação internos.
 
 ---
 

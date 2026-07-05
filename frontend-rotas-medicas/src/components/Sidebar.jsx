@@ -11,7 +11,9 @@ const NAV_ITEMS = [
   },
 ]
 
-export default function Sidebar({ onNovaRota, loading }) {
+export default function Sidebar({ usuario, onNovaRota, onLogout, loading }) {
+  const inicial = usuario ? usuario.charAt(0).toUpperCase() : '?'
+
   return (
     <header
       className="flex-shrink-0 bg-[#0B1A30] text-white flex items-center px-5 gap-5 shadow-lg z-20 select-none"
@@ -59,9 +61,27 @@ export default function Sidebar({ onNovaRota, loading }) {
         <button className="text-[11px] text-blue-300/80 border border-blue-700/50 px-3 py-1 rounded-full hover:bg-blue-800/50 hover:text-blue-200 transition-colors whitespace-nowrap">
           💡FIAP Tech Challenge Fase 2 - 9IADT - Grupo 88
         </button>
+        {usuario && (
+          <span className="text-xs font-medium text-blue-100/80 whitespace-nowrap" title={`Logado como ${usuario}`}>
+            {usuario}
+          </span>
+        )}
         <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-          G
+          {inicial}
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          disabled={loading}
+          title="Sair"
+          className="w-7 h-7 rounded-full flex items-center justify-center text-blue-300/70 hover:text-white hover:bg-white/10 transition-colors flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
       </div>
     </header>
   )

@@ -11,3 +11,5 @@ class Settings:
     CORS_ORIGINS: list[str] = ["*"]
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     MODELO_RESPOSTA: str = os.getenv("MODELO_CHAT", "gpt-4.1-nano")
+    AUTH_USUARIO: str = os.getenv("AUTH_USUARIO", "")
+    AUTH_SENHA: str = os.getenv("AUTH_SENHA", "")

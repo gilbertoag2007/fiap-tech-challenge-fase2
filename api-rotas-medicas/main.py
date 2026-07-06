@@ -1,3 +1,13 @@
+import sys
+
+# Força line-buffering no stdout/stderr: em containers (Render, Docker etc.), a saída
+# não é um terminal interativo, então o Python usa buffering em bloco por padrão — os
+# prints só aparecem no log quando o buffer enche ou o processo termina, dando a falsa
+# impressão de que tudo aconteceu "instantaneamente" no mesmo instante. Line-buffering
+# faz cada linha aparecer no log assim que é impressa, com timestamp real.
+sys.stdout.reconfigure(line_buffering=True)
+sys.stderr.reconfigure(line_buffering=True)
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

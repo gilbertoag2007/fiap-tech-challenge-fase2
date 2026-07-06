@@ -1,4 +1,5 @@
 import random
+import time
 from typing import Any
 
 from models.individuo import Individuo
@@ -74,7 +75,11 @@ class RotaService:
         -------
         dict — GeoJSON FeatureCollection com a rota otimizada.
         """
+        tempo_inicio_total = time.perf_counter()
+
+        tempo_inicio_llm = time.perf_counter()
         pares = LLMService().interpretar_mensagem(mensagem)
+        tempo_llm_segundos = time.perf_counter() - tempo_inicio_llm
 
         if not pares:
             raise ValueError("Nenhuma cidade encontrada com os parâmentros informados.")
@@ -99,6 +104,8 @@ class RotaService:
             f"mutação_op={tipo_mutacao} | 2opt={usar_2opt} | init={tipo_inicializacao} | "
             f"parada_antecipada={'ativa (paciência=' + str(paciencia_parada_antecipada) + ')' if parada_antecipada_ativa else 'inativa'}"
         )
+
+        tempo_inicio_ag = time.perf_counter()
 
         # --- Inicialização da população ---
         if tipo_inicializacao == "vizinho_mais_proximo":
@@ -214,6 +221,8 @@ class RotaService:
                     )
                     break
 
+        tempo_ag_segundos = time.perf_counter() - tempo_inicio_ag
+
         melhor = ag.seleciona_melhores_individuos(populacao, 1)[0]
         rota_valida = melhor.is_valido()
         diagnostico_prioridade = self._diagnostico_prioridade(melhor)
@@ -221,6 +230,12 @@ class RotaService:
             f"[RotaService] Rota final: {melhor.rota_nomes()} | "
             f"distância={melhor.distancia:.2f} km | aptidão={melhor.aptidao:.2f} | "
             f"válida={rota_valida} | {diagnostico_prioridade}"
+        )
+
+        tempo_total_segundos = time.perf_counter() - tempo_inicio_total
+        print(
+            f"[RotaService] Tempo de execução: LLM={tempo_llm_segundos:.2f}s | "
+            f"AG={tempo_ag_segundos:.2f}s | total={tempo_total_segundos:.2f}s"
         )
 
         return {

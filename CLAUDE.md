@@ -20,7 +20,7 @@ O AG é configurável pelo usuário: estratégia de seleção (truncamento/torne
 
 ```bash
 # --- Backend (api-rotas-medicas/) ---
-pip install -r requeriments.txt
+pip install -r requirements.txt
 uvicorn main:app --reload          # sobe em http://localhost:8000
 pytest tests/ -q                   # roda a suíte automatizada completa (AG + autenticação)
 
@@ -53,7 +53,7 @@ api-rotas-medicas/
 ├── .env                             # Variáveis de ambiente (não commitar)
 ├── .env.example                     # Modelo do .env sem valores reais
 ├── teste_services.py                # Script manual de fumaça dos services (não é a suíte automatizada)
-├── requeriments.txt                 # Dependências pip
+├── requirements.txt                  # Dependências pip
 ├── api/
 │   ├── dependencies.py               # verificar_token — dependência FastAPI que protege endpoints autenticados
 │   ├── routers/

@@ -5,6 +5,7 @@ import MapView from './components/MapView.jsx'
 import MedicalIllustration from './components/MedicalIllustration.jsx'
 import AnalysisPanel from './components/AnalysisPanel.jsx'
 import LoginForm from './components/LoginForm.jsx'
+import { API_URL } from './config.js'
 
 const AUTH_STORAGE_KEY = 'rota_medica_auth'
 
@@ -75,7 +76,7 @@ export default function App() {
     setLoginLoading(true)
     setLoginError(null)
     try {
-      const res = await fetch('/auth/login', {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ usuario, senha }),
@@ -101,7 +102,7 @@ export default function App() {
   const handleLogout = () => {
     if (auth?.token) {
       // Melhor esforço — revoga no backend, mas não bloqueia o logout local se falhar.
-      fetch('/auth/logout', {
+      fetch(`${API_URL}/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${auth.token}` },
       }).catch(() => {})
@@ -117,7 +118,7 @@ export default function App() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/rotas/', {
+      const res = await fetch(`${API_URL}/rotas/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -1,12 +1,12 @@
-ID;NOME;PRIORIDADE;PESO_KG
-1;Vacina da Covid;1;2.5
-2;Seringa;2;0.2
-3;Vacina da Gripe;1;2.0
-4;Gase;2;0.5
-5;Algodão;2;0.4
-6;Vacina BCG;1;1.5
-7;Outras vacinas;1;2.0
-8;Outros insumos diferentes de vacinas e medicamentos;2;3.0
-9;Remédio de Hipertensão;2;0.8
-10;Remédio antialergíco;2;0.6
-11;Outros medicamentos;2;1.0
+ID;NOME;PRIORIDADE
+1;Vacina da Covid;1
+2;Seringa;2
+3;Vacina da Gripe;1
+4;Gase;2
+5;Algodão;2
+6;Vacina BCG;1
+7;Outras vacinas;1
+8;Outros insumos diferentes de vacinas e medicamentos;2
+9;Remédio de Hipertensão;2
+10;Remédio antialergíco;2
+11;Outros medicamentos;2

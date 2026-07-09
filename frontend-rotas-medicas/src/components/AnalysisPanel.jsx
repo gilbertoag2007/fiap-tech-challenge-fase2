@@ -20,10 +20,6 @@ function formatCompact(n) {
   return String(n)
 }
 
-function formatKg(n) {
-  return Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })
-}
-
 function PriorityPositionBar({ label, count, percentual, colorClass, dotClass }) {
   return (
     <div>
@@ -65,11 +61,6 @@ export default function AnalysisPanel({ geoJson }) {
     posicao_media_prioridade_1_percentual = null,
     cidades_prioridade_2 = 0,
     posicao_media_prioridade_2_percentual = null,
-    carga_total_kg = 0,
-    capacidade_veiculo_kg = null,
-    excesso_carga_kg = 0,
-    capacidade_excedida = false,
-    uso_capacidade_percentual = null,
   } = geoJson
 
   useEffect(() => {
@@ -297,7 +288,7 @@ export default function AnalysisPanel({ geoJson }) {
         <SummaryCard
           label="Aptidão"
           value={aptidao_final.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-          hint="Valor usado pelo algoritmo genético para comparar rotas: distância total menos a bonificação por entregas de prioridade 1 antecipadas, mais penalidade por excesso de carga. Quanto menor, melhor — pode ficar negativo quando a bonificação supera a distância."
+          hint="Valor usado pelo algoritmo genético para comparar rotas: distância total menos a bonificação por entregas de prioridade 1 antecipadas. Quanto menor, melhor — pode ficar negativo quando a bonificação supera a distância."
           note={aptidao_final < 0 ? 'Negativa = bônus superou distância' : 'Menor é melhor'}
           noteClass={aptidao_final < 0 ? 'text-blue-600 font-semibold' : 'text-slate-400'}
         />
@@ -307,45 +298,6 @@ export default function AnalysisPanel({ geoJson }) {
           hint="Número total de novas rotas geradas e avaliadas ao longo de toda a execução do algoritmo genético — mede o esforço de busca realizado, de forma mais precisa do que contar só as épocas (populações maiores avaliam mais rotas por época)."
         />
       </div>
-
-      {/* Vehicle capacity */}
-      {capacidade_veiculo_kg !== null && (
-        <div className="px-3 pt-3 pb-3 flex-shrink-0 border-b border-slate-100">
-          <div className="flex items-center justify-between mb-2">
-            <p
-              className="text-[10px] font-bold text-slate-500 uppercase tracking-widest"
-              title="Compara a carga total estimada dos produtos com a capacidade máxima informada para o veículo. Se exceder, a aptidão recebe penalidade."
-            >
-              Capacidade de Carga
-            </p>
-            <span
-              className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                capacidade_excedida ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-              }`}
-            >
-              {capacidade_excedida ? 'Excedida' : 'Dentro do limite'}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 mb-2">
-            <SummaryCard label="Carga" value={formatKg(carga_total_kg)} unit="kg" />
-            <SummaryCard label="Capacidade" value={formatKg(capacidade_veiculo_kg)} unit="kg" />
-          </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full ${capacidade_excedida ? 'bg-red-500' : 'bg-emerald-500'}`}
-              style={{ width: `${Math.min(100, uso_capacidade_percentual || 0)}%` }}
-            />
-          </div>
-          <div className="flex items-center justify-between mt-1.5 text-[10px]">
-            <span className="text-slate-400">
-              Uso: {(uso_capacidade_percentual || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%
-            </span>
-            <span className={capacidade_excedida ? 'text-red-600 font-semibold' : 'text-slate-400'}>
-              Excesso: {formatKg(excesso_carga_kg)} kg
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* Priority positioning comparison */}
       <div className="px-3 pt-3 pb-3 flex-shrink-0 border-b border-slate-100 space-y-2.5">

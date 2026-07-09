@@ -310,34 +310,6 @@ def test_diagnostico_prioridade_sem_cidades_prioridade_1_retorna_none():
     assert diagnostico["posicao_media_prioridade_2_percentual"] is not None
 
 
-def test_aptidao_sem_capacidade_nao_aplica_penalidade():
-    partida = Cidade(0, "Partida", "SP", 0.0, 0.0, "Sudeste", None)
-    c1 = Cidade(1, "Cidade1", "SP", 0.5, 0.3, "Sudeste", Produto(1, "Vacina", 1, peso_kg=10.0))
-    individuo = Individuo(partida, [partida, c1, partida])
-
-    aptidao = individuo.calcular_aptidao()
-
-    assert individuo.carga_total_kg == pytest.approx(10.0)
-    assert individuo.excesso_carga_kg == pytest.approx(0.0)
-    assert individuo.penalidade_capacidade == pytest.approx(0.0)
-    assert aptidao == pytest.approx(individuo.distancia - individuo._bonificacao_prioridade())
-
-
-def test_aptidao_com_capacidade_excedida_aplica_penalidade():
-    partida = Cidade(0, "Partida", "SP", 0.0, 0.0, "Sudeste", None)
-    c1 = Cidade(1, "Cidade1", "SP", 0.5, 0.3, "Sudeste", Produto(1, "Vacina", 1, peso_kg=10.0))
-    individuo = Individuo(partida, [partida, c1, partida], capacidade_veiculo_kg=6.0)
-
-    aptidao = individuo.calcular_aptidao()
-
-    assert individuo.carga_total_kg == pytest.approx(10.0)
-    assert individuo.excesso_carga_kg == pytest.approx(4.0)
-    assert individuo.penalidade_capacidade == pytest.approx(4000.0)
-    assert aptidao == pytest.approx(
-        individuo.distancia - individuo._bonificacao_prioridade() + 4000.0
-    )
-
-
 # ---------------------------------------------------------------------------
 # Intervalo de amostragem do historico_evolucao (RotaService._calcular_intervalo_amostra)
 # ---------------------------------------------------------------------------

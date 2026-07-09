@@ -22,7 +22,6 @@ class RotaService:
         populacao_apenas_aleatoria: int,
         tamanho_populacao: int,
         tamanho_elite: int,
-        capacidade_veiculo_kg: float | None = None,
         tipo_selecao: str = "truncamento",
         tipo_crossover: str = "ox",
         tipo_mutacao: str = "ambos",
@@ -44,9 +43,6 @@ class RotaService:
             1 = preserva os melhores indivíduos na próxima geração, 0 = não preserva.
         grau_mutacao : float
             Taxa de mutação em percentual (0.00 a 10.00). Convertido para 0.0–1.0 internamente.
-        capacidade_veiculo_kg : float | None
-            Capacidade máxima opcional do veículo em kg. Quando informada, excesso de
-            carga gera penalidade na aptidão.
         populacao_apenas_aleatoria : int
             Reservado para extensões futuras (não altera o comportamento atual).
         tamanho_populacao : int
@@ -99,7 +95,6 @@ class RotaService:
             f"[RotaService] {len(lista_cidades)} cidades | {epocas} épocas | "
             f"população={tamanho_populacao} | elite={tamanho_elite} | "
             f"mutação={probabilidade_mutacao:.4f} | elitismo={elitismo} | "
-            f"capacidade_kg={capacidade_veiculo_kg if capacidade_veiculo_kg is not None else 'sem limite'} | "
             f"seleção={tipo_selecao} | crossover={tipo_crossover} | "
             f"mutação_op={tipo_mutacao} | 2opt={usar_2opt} | init={tipo_inicializacao} | "
             f"parada_antecipada={'ativa (paciência=' + str(paciencia_parada_antecipada) + ')' if parada_antecipada_ativa else 'inativa'}"
@@ -108,17 +103,15 @@ class RotaService:
         # --- Inicialização da população ---
         if tipo_inicializacao == "vizinho_mais_proximo":
             individuo_nn = ag.gerar_individuo_vizinho_mais_proximo(
-                partida, lista_cidades, capacidade_veiculo_kg
+                partida, lista_cidades
             )
             populacao = ag.gerar_populacao_aleatoria(
                 tamanho_populacao, partida, lista_cidades,
                 melhores_individuos=[individuo_nn],
-                capacidade_veiculo_kg=capacidade_veiculo_kg,
             )
         else:
             populacao = ag.gerar_populacao_aleatoria(
                 tamanho_populacao, partida, lista_cidades,
-                capacidade_veiculo_kg=capacidade_veiculo_kg,
             )
 
         # --- Loop evolucionário ---
@@ -228,11 +221,10 @@ class RotaService:
         melhor = ag.seleciona_melhores_individuos(populacao, 1)[0]
         rota_valida = melhor.is_valido()
         diagnostico_prioridade = self._diagnostico_prioridade(melhor)
-        diagnostico_capacidade = self._diagnostico_capacidade(melhor, capacidade_veiculo_kg)
         print(
             f"[RotaService] Rota final: {melhor.rota_nomes()} | "
             f"distância={melhor.distancia:.2f} km | aptidão={melhor.aptidao:.2f} | "
-            f"válida={rota_valida} | {diagnostico_prioridade} | {diagnostico_capacidade}"
+            f"válida={rota_valida} | {diagnostico_prioridade}"
         )
 
         return {
@@ -247,7 +239,6 @@ class RotaService:
             "total_avaliacoes_aptidao": total_avaliacoes_aptidao,
             "rota_valida": rota_valida,
             **diagnostico_prioridade,
-            **diagnostico_capacidade,
         }
 
     # ---------------------------------------------------------------------------
@@ -376,30 +367,4 @@ class RotaService:
             "posicao_media_prioridade_1_percentual": _posicao_media_percentual(posicoes_por_prioridade[1]),
             "cidades_prioridade_2": len(posicoes_por_prioridade[2]),
             "posicao_media_prioridade_2_percentual": _posicao_media_percentual(posicoes_por_prioridade[2]),
-        }
-
-    # ---------------------------------------------------------------------------
-    # Auxiliar: diagnóstico de capacidade de carga
-    # ---------------------------------------------------------------------------
-
-    def _diagnostico_capacidade(
-        self, melhor: Individuo, capacidade_veiculo_kg: float | None
-    ) -> dict[str, Any]:
-        carga_total_kg = round(melhor.calcular_carga_total_kg(), 2)
-        excesso_carga_kg = (
-            round(max(0.0, carga_total_kg - capacidade_veiculo_kg), 2)
-            if capacidade_veiculo_kg is not None
-            else 0.0
-        )
-        uso_capacidade_percentual = (
-            round((carga_total_kg / capacidade_veiculo_kg) * 100, 1)
-            if capacidade_veiculo_kg is not None
-            else None
-        )
-        return {
-            "carga_total_kg": carga_total_kg,
-            "capacidade_veiculo_kg": capacidade_veiculo_kg,
-            "excesso_carga_kg": excesso_carga_kg,
-            "capacidade_excedida": excesso_carga_kg > 0,
-            "uso_capacidade_percentual": uso_capacidade_percentual,
         }

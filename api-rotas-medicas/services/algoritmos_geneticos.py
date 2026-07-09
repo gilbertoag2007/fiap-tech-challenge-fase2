@@ -21,7 +21,6 @@ from models.cidade import Cidade
 def gerar_individuo_aleatorio(
     partida: Cidade,
     cidades: list[Cidade],
-    capacidade_veiculo_kg: float | None = None,
 ) -> Individuo:
     """
     Cria um indivíduo com cromossomo aleatorio.
@@ -42,7 +41,7 @@ def gerar_individuo_aleatorio(
     """
     outras = [c for c in cidades if c.cod_ibge != partida.cod_ibge]
     random.shuffle(outras)
-    return Individuo(partida, [partida] + outras + [partida], capacidade_veiculo_kg)
+    return Individuo(partida, [partida] + outras + [partida])
 
 
 def seleciona_melhores_individuos(populacao: list[Individuo], quantidade: int) -> list[Individuo]:
@@ -60,7 +59,6 @@ def gerar_populacao_aleatoria(
     partida: Cidade, 
     cidades: list[Cidade],
     melhores_individuos: Optional[list[Individuo]] = None,
-    capacidade_veiculo_kg: float | None = None,
 ) -> list[Individuo]:
     """
     Gera uma população inicial de indivíduos com rotas aleatórias e únicas.
@@ -174,7 +172,7 @@ def gerar_populacao_aleatoria(
     
     # Loop de geração com validação de unicidade
     while len(populacao) < quantidade and tentativas < max_tentativas:
-        individuo = gerar_individuo_aleatorio(partida, cidades, capacidade_veiculo_kg)
+        individuo = gerar_individuo_aleatorio(partida, cidades)
         
         # Cria uma tupla de IDs para comparação eficiente
         cromossomo_tupla = tuple(c.cod_ibge for c in individuo.cromossomo)
@@ -241,7 +239,7 @@ def cruzamento_ox(parent1: Individuo, parent2: Individuo, partida: Cidade) -> In
     # Escolher dois índices aleatórios para o segmento de cruzamento
     # (excluindo a primeira posição que é a cidade de partida)
     if length < 4:
-        return Individuo(partida, list(cromossomo_p1), parent1.capacidade_veiculo_kg)
+        return Individuo(partida, list(cromossomo_p1))
 
     start_index = random.randint(1, length - 3)
     end_index = random.randint(start_index + 1, length - 1)
@@ -272,7 +270,7 @@ def cruzamento_ox(parent1: Individuo, parent2: Individuo, partida: Cidade) -> In
     # Fechar a rota com a cidade de partida
     filho_cromossomo.append(partida)
 
-    return Individuo(partida, filho_cromossomo, parent1.capacidade_veiculo_kg)
+    return Individuo(partida, filho_cromossomo)
 
 
 # =============================================================================
@@ -463,7 +461,7 @@ def cruzamento_erx(parent1: Individuo, parent2: Individuo, partida: Cidade) -> I
             atual_cod = random.choice(list(nao_visitados))
 
     filho_cromossomo.append(partida)
-    return Individuo(partida, filho_cromossomo, parent1.capacidade_veiculo_kg)
+    return Individuo(partida, filho_cromossomo)
 
 
 # =============================================================================
@@ -513,7 +511,7 @@ def mutacao_or_opt(individuo: Individuo, probabilidade_mutacao: float) -> Indivi
 
     pos_insercao = random.choice(posicoes_validas)
     novo_cromossomo = resto[:pos_insercao] + segmento + resto[pos_insercao:]
-    return Individuo(individuo.partida, novo_cromossomo, individuo.capacidade_veiculo_kg)
+    return Individuo(individuo.partida, novo_cromossomo)
 
 
 # =============================================================================
@@ -570,7 +568,7 @@ def busca_local_2opt(individuo: Individuo, max_passagens: int = 1) -> Individuo:
         if not melhorou:
             break
 
-    return Individuo(individuo.partida, cromossomo, individuo.capacidade_veiculo_kg)
+    return Individuo(individuo.partida, cromossomo)
 
 
 # =============================================================================
@@ -580,7 +578,6 @@ def busca_local_2opt(individuo: Individuo, max_passagens: int = 1) -> Individuo:
 def gerar_individuo_vizinho_mais_proximo(
     partida: Cidade,
     cidades: list[Cidade],
-    capacidade_veiculo_kg: float | None = None,
 ) -> Individuo:
     """
     Gera um indivíduo usando a heurística gulosa do vizinho mais próximo.
@@ -607,7 +604,7 @@ def gerar_individuo_vizinho_mais_proximo(
         nao_visitadas.remove(mais_proximo)
         atual = mais_proximo
     rota.append(partida)
-    return Individuo(partida, rota, capacidade_veiculo_kg)
+    return Individuo(partida, rota)
 
 
 # =============================================================================

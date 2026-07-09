@@ -76,8 +76,6 @@ LLM_MOCK=1
 
 Com `LLM_MOCK=1`, a API nao chama a OpenAI. Ela tenta inferir cidades/produtos pela mensagem usando os CSVs locais e, se nao conseguir, usa uma lista padrao em `api-rotas-medicas/services/llm_service.py`.
 
-Para testar a restricao de capacidade no modo mock, preencha o campo "Capacidade do Veiculo (kg)" no frontend ou envie `capacidade_veiculo_kg` no payload da API. O mock altera apenas a interpretacao de cidades/produtos; os parametros do algoritmo continuam vindo da requisicao.
-
 Suba a API:
 
 ```bash
@@ -150,7 +148,6 @@ Recebe a mensagem da rota e parametros do algoritmo genetico, como:
 - `tamanho_populacao`
 - `tamanho_elite`
 - `grau_mutacao`
-- `capacidade_veiculo_kg`: capacidade maxima opcional do veiculo em kg
 - `elitismo`
 - `tipo_selecao`: `truncamento` ou `torneio`
 - `tipo_crossover`: `ox` ou `erx`
@@ -159,22 +156,7 @@ Recebe a mensagem da rota e parametros do algoritmo genetico, como:
 - `tipo_inicializacao`: `aleatoria` ou `vizinho_mais_proximo`
 - `usar_parada_antecipada`
 
-A resposta e um `FeatureCollection` GeoJSON com a rota, distancia total, historico de evolucao, metricas de aptidao, diagnostico de prioridade e diagnostico de capacidade de carga.
-
-Exemplo minimo de payload com capacidade:
-
-```json
-{
-  "mensagem": "Monte uma rota para entregar vacinas e medicamentos em Sao Paulo, Campinas e Santos.",
-  "epocas": 100,
-  "elitismo": 1,
-  "grau_mutacao": 2,
-  "populacao_apenas_aleatoria": 1,
-  "tamanho_populacao": 100,
-  "tamanho_elite": 10,
-  "capacidade_veiculo_kg": 10
-}
-```
+A resposta e um `FeatureCollection` GeoJSON com a rota, distancia total, historico de evolucao, metricas de aptidao e diagnostico de prioridade.
 
 ## Algoritmo Genetico
 
@@ -193,7 +175,7 @@ Principais caracteristicas:
 - Busca local 2-opt opcional.
 - Elitismo opcional.
 - Parada antecipada opcional.
-- Fitness baseado em distancia total, bonificacao para entregas de prioridade 1 e penalidade quando a carga total excede `capacidade_veiculo_kg`.
+- Fitness baseado em distancia total e bonificacao para entregas de prioridade 1.
 
 ## Dados
 
@@ -201,14 +183,6 @@ Os dados locais ficam em:
 
 - `api-rotas-medicas/data/cidades.csv`
 - `api-rotas-medicas/data/produtos.csv`
-
-O arquivo de produtos possui a coluna `PESO_KG`, usada para calcular a carga total da rota. Quando o usuario informa a capacidade do veiculo no frontend, a API retorna:
-
-- `carga_total_kg`
-- `capacidade_veiculo_kg`
-- `excesso_carga_kg`
-- `capacidade_excedida`
-- `uso_capacidade_percentual`
 
 ## Testes
 

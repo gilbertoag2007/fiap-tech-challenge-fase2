@@ -12,9 +12,6 @@ class Individuo:
         Cidade de partida — deve ser o primeiro e o último elemento do cromossomo.
     cromossomo : list[Cidade]
         Rota completa já construída, incluindo a cidade de partida no início e no fim.
-    capacidade_veiculo_kg : float | None
-        Capacidade máxima opcional do veículo em kg. Quando ausente, não aplica
-        penalidade logística.
 
     Atributos
     ---------
@@ -22,17 +19,13 @@ class Individuo:
         Sequência ordenada de cidades que define a rota circular.
     """
 
-    _PENALIDADE_POR_KG_EXCEDIDO: float = 1000.0
-
     def __init__(
         self,
         partida: Cidade,
         cromossomo: list[Cidade],
-        capacidade_veiculo_kg: float | None = None,
     ) -> None:
         self.partida = partida
         self.cromossomo: list[Cidade] = cromossomo
-        self.capacidade_veiculo_kg = capacidade_veiculo_kg
 
     # Bonificação subtraída da aptidão por cidade de prioridade 1 ("vacina"),
     # ponderada pela posição na rota (quanto mais cedo, maior o bônus).
@@ -47,7 +40,7 @@ class Individuo:
     def calcular_aptidao(self) -> float:
         """
         Calcula a aptidão do indivíduo como:
-            aptidao = distancia_total - bonificacao_prioridade + penalidade_capacidade
+            aptidao = distancia_total - bonificacao_prioridade
 
         A bonificação recompensa cidades de maior prioridade ("vacina") por
         ocuparem posições mais cedo na rota: cada uma contribui com
@@ -69,25 +62,8 @@ class Individuo:
             distancia_total += self.cromossomo[i].distancia_para(self.cromossomo[i + 1])
 
         self.distancia = distancia_total
-        self.carga_total_kg = self.calcular_carga_total_kg()
-        self.excesso_carga_kg = self.calcular_excesso_carga_kg()
-        self.penalidade_capacidade = self.excesso_carga_kg * self._PENALIDADE_POR_KG_EXCEDIDO
-        self.aptidao = distancia_total - self._bonificacao_prioridade() + self.penalidade_capacidade
+        self.aptidao = distancia_total - self._bonificacao_prioridade()
         return self.aptidao
-
-    def calcular_carga_total_kg(self) -> float:
-        """Soma o peso estimado dos produtos entregues nas cidades da rota."""
-        return sum(
-            c.produto.peso_kg
-            for c in self.cromossomo[1:-1]
-            if c.produto is not None
-        )
-
-    def calcular_excesso_carga_kg(self) -> float:
-        """Calcula o excesso de carga em kg, quando há capacidade configurada."""
-        if self.capacidade_veiculo_kg is None:
-            return 0.0
-        return max(0.0, self.carga_total_kg - self.capacidade_veiculo_kg)
 
     def _bonificacao_prioridade(self) -> float:
         """Bonifica cidades de prioridade 1 por ocuparem posições mais cedo na rota."""
@@ -122,7 +98,7 @@ class Individuo:
 
     def copiar(self) -> "Individuo":
         """Retorna uma cópia independente deste indivíduo."""
-        return Individuo(self.partida, list(self.cromossomo), self.capacidade_veiculo_kg)
+        return Individuo(self.partida, list(self.cromossomo))
 
     def rota_nomes(self) -> list[str]:
         """Retorna a sequência de nomes das cidades na ordem da rota."""

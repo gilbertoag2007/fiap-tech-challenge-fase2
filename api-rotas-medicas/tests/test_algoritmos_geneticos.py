@@ -23,7 +23,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from models.cidade import Cidade
-from models.individuo import Individuo
+from models.Individuo import Individuo
 from models.produto import Produto
 from services import algoritmos_geneticos as ag
 from services.rota_service import RotaService

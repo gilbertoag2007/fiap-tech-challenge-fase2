@@ -1,7 +1,7 @@
 import random
 from typing import Any
 
-from models.individuo import Individuo
+from models.Individuo import Individuo
 from services.cidade_service import cidade_service
 from services.llm_service import LLMService
 from services import algoritmos_geneticos as ag

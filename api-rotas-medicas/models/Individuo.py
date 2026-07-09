@@ -23,7 +23,6 @@ class Individuo:
         self.partida = partida
         self.cromossomo: list[Cidade] = cromossomo
 
-
     # Bonificação subtraída da aptidão por cidade de prioridade 1 ("vacina"),
     # ponderada pela posição na rota (quanto mais cedo, maior o bônus).
     # Ordem de grandeza escolhida para ficar próxima da escala de uma única
@@ -59,7 +58,7 @@ class Individuo:
             distancia_total += self.cromossomo[i].distancia_para(self.cromossomo[i + 1])
 
         self.distancia = distancia_total
-        self.aptidao   = distancia_total - self._bonificacao_prioridade()
+        self.aptidao = distancia_total - self._bonificacao_prioridade()
         return self.aptidao
 
     def _bonificacao_prioridade(self) -> float:
@@ -71,7 +70,6 @@ class Individuo:
             for i, c in enumerate(cidades_rota)
             if c.produto.prioridade == 1
         )
-
 
     # ------------------------------------------------------------------
     # Validação
@@ -101,4 +99,3 @@ class Individuo:
     def rota_nomes(self) -> list[str]:
         """Retorna a sequência de nomes das cidades na ordem da rota."""
         return [c.nome for c in self.cromossomo]
-

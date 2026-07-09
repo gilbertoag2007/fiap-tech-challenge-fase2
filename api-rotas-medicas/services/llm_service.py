@@ -1,5 +1,6 @@
 import json
 import re
+import unicodedata
 from typing import Any
 from openai import OpenAI
 from config.settings import Settings
@@ -9,7 +10,42 @@ from services.produto_service import produto_service
 class LLMService:
 
     _settings = Settings()
-    _client = OpenAI(api_key=_settings.OPENAI_API_KEY)
+    _client: OpenAI | None = None
+    _PARES_MOCK_PADRAO: list[dict[str, int]] = [
+        {"cod_ibge": 3550308, "produto_id": 1},   # São Paulo -> Vacina da Covid
+        {"cod_ibge": 3509502, "produto_id": 2},   # Campinas -> Seringa
+        {"cod_ibge": 3548500, "produto_id": 3},   # Santos -> Vacina da Gripe
+        {"cod_ibge": 3304557, "produto_id": 4},   # Rio de Janeiro -> Gase
+        {"cod_ibge": 3303302, "produto_id": 5},   # Niterói -> Algodão
+        {"cod_ibge": 3301702, "produto_id": 6},   # Duque de Caxias -> Vacina BCG
+        {"cod_ibge": 3106200, "produto_id": 7},   # Belo Horizonte -> Outras vacinas
+        {"cod_ibge": 4106902, "produto_id": 8},   # Curitiba -> Outros insumos
+        {"cod_ibge": 4314902, "produto_id": 9},   # Porto Alegre -> Remédio de Hipertensão
+        {"cod_ibge": 5002704, "produto_id": 10},  # Campo Grande -> Remédio antialergíco
+        {"cod_ibge": 5103403, "produto_id": 11},  # Cuiabá -> Outros medicamentos
+        {"cod_ibge": 5208707, "produto_id": 1},   # Goiânia -> Vacina da Covid
+        {"cod_ibge": 3205309, "produto_id": 2},   # Vitória -> Seringa
+        {"cod_ibge": 4205407, "produto_id": 3},   # Florianópolis -> Vacina da Gripe
+        {"cod_ibge": 1721000, "produto_id": 4},   # Palmas -> Gase
+        {"cod_ibge": 1501402, "produto_id": 5},   # Belém -> Algodão
+        {"cod_ibge": 1302603, "produto_id": 6},   # Manaus -> Vacina BCG
+        {"cod_ibge": 2927408, "produto_id": 7},   # Salvador -> Outras vacinas
+        {"cod_ibge": 2611606, "produto_id": 8},   # Recife -> Outros insumos
+        {"cod_ibge": 2507507, "produto_id": 9},   # João Pessoa -> Remédio de Hipertensão
+        {"cod_ibge": 2704302, "produto_id": 10},  # Maceió -> Remédio antialergíco
+        {"cod_ibge": 2408102, "produto_id": 11},  # Natal -> Outros medicamentos
+        {"cod_ibge": 2800308, "produto_id": 1},   # Aracaju -> Vacina da Covid
+        {"cod_ibge": 2211001, "produto_id": 2},   # Teresina -> Seringa
+        {"cod_ibge": 2111300, "produto_id": 3},   # São Luís -> Vacina da Gripe
+        {"cod_ibge": 1100205, "produto_id": 4},   # Porto Velho -> Gase
+        {"cod_ibge": 1200401, "produto_id": 5},   # Rio Branco -> Algodão
+    ]
+
+    @classmethod
+    def _get_client(cls) -> OpenAI:
+        if cls._client is None:
+            cls._client = OpenAI(api_key=cls._settings.OPENAI_API_KEY)
+        return cls._client
 
     # ---------------------------------------------------------------------------
     # Contexto fixo enviado ao ChatGPT em todas as chamadas
@@ -294,6 +330,127 @@ class LLMService:
             return [{"cod_ibge": cidade.cod_ibge, "nome": cidade.nome, "uf": cidade.uf}]
         return []
 
+    # ---------------------------------------------------------------------------
+    # Mock local para testes sem cota da OpenAI
+    # ---------------------------------------------------------------------------
+
+    @staticmethod
+    def _normalizar_texto(texto: str) -> str:
+        texto_ascii = unicodedata.normalize("NFKD", texto)
+        texto_ascii = "".join(c for c in texto_ascii if not unicodedata.combining(c))
+        return texto_ascii.casefold()
+
+    @staticmethod
+    def _encontrar_termo(texto_normalizado: str, termo_normalizado: str) -> int:
+        match = re.search(rf"(?<!\w){re.escape(termo_normalizado)}(?!\w)", texto_normalizado)
+        return match.start() if match else -1
+
+    def _encontrar_produto_mock(self, mensagem_normalizada: str, nome_produto: str) -> int:
+        nome_normalizado = self._normalizar_texto(nome_produto)
+        posicao = self._encontrar_termo(mensagem_normalizada, nome_normalizado)
+        if posicao >= 0:
+            return posicao
+
+        palavras_produto = [p for p in re.findall(r"\w+", nome_normalizado) if len(p) > 3]
+        palavras_mensagem = [
+            (match.start(), match.group(0))
+            for match in re.finditer(r"\w+", mensagem_normalizada)
+            if len(match.group(0)) > 3
+        ]
+        for posicao_palavra, palavra_mensagem in palavras_mensagem:
+            if any(
+                palavra_mensagem.startswith(palavra_produto)
+                or palavra_produto.startswith(palavra_mensagem)
+                for palavra_produto in palavras_produto
+            ):
+                return posicao_palavra
+
+        return -1
+
+    def _pares_mock_padrao(self) -> list[dict[str, int]]:
+        pares: list[dict[str, int]] = []
+
+        for par in self._PARES_MOCK_PADRAO:
+            cod_ibge = par["cod_ibge"]
+            produto_id = par["produto_id"]
+            if cidade_service.buscar_por_cod_ibge(cod_ibge) is None:
+                continue
+            if produto_service.buscar_por_id(produto_id) is None:
+                continue
+            pares.append({"cod_ibge": cod_ibge, "produto_id": produto_id})
+
+        return pares
+
+    def _interpretar_mensagem_mock(self, mensagem: str) -> list[dict[str, int]]:
+        """
+        Interpreta a mensagem sem chamar a OpenAI, usando apenas os CSVs locais.
+
+        O mock procura nomes de cidades e produtos literalmente mencionados no
+        texto. Se encontrar cidades, associa cada uma ao produto mais próximo:
+        primeiro produto citado antes da cidade; se não houver, o primeiro produto
+        citado na mensagem. Se não encontrar cidades ou produtos suficientes,
+        retorna uma rota padrão pequena para manter o frontend testável.
+        """
+        mensagem_normalizada = self._normalizar_texto(mensagem)
+        cidades = getattr(cidade_service, "_cidades", [])
+        produtos = getattr(produto_service, "_produtos", [])
+
+        cidades_mencionadas = [
+            (self._encontrar_termo(mensagem_normalizada, self._normalizar_texto(cidade.nome)), cidade)
+            for cidade in cidades
+        ]
+        produtos_mencionados = [
+            (self._encontrar_produto_mock(mensagem_normalizada, produto.nome), produto)
+            for produto in produtos
+        ]
+
+        cidades_mencionadas = sorted(
+            [(pos, cidade) for pos, cidade in cidades_mencionadas if pos >= 0],
+            key=lambda item: item[0],
+        )
+        produtos_mencionados = sorted(
+            [(pos, produto) for pos, produto in produtos_mencionados if pos >= 0],
+            key=lambda item: (item[0], item[1].id),
+        )
+
+        if not cidades_mencionadas:
+            pares = self._pares_mock_padrao()
+            print(f"[LLMService] Mock ativo: nenhuma cidade inferida; usando {len(pares)} pares padrão do CSV.")
+            return self._reordenar_partida(pares, mensagem)
+
+        if not produtos_mencionados:
+            produto_padrao = produto_service.pesquisar_por_nome("vacina")
+            produto_id = produto_padrao[0].id if produto_padrao else 1
+            produtos_mencionados = [(0, produto_service.buscar_por_id(produto_id))]
+
+        pares: list[dict[str, int]] = []
+        produto_principal = next((produto for _, produto in produtos_mencionados if produto is not None), None)
+        for pos_cidade, cidade in cidades_mencionadas:
+            produtos_anteriores = [
+                (pos_produto, produto)
+                for pos_produto, produto in produtos_mencionados
+                if produto is not None and pos_produto <= pos_cidade
+            ]
+            if produtos_anteriores:
+                posicao_mais_recente = max(pos for pos, _ in produtos_anteriores)
+                produto = min(
+                    (produto for pos, produto in produtos_anteriores if pos == posicao_mais_recente),
+                    key=lambda item: item.id,
+                )
+            else:
+                produto = produto_principal
+            if produto is None:
+                continue
+            pares.append({"cod_ibge": cidade.cod_ibge, "produto_id": produto.id})
+
+        if len(pares) < 2:
+            pares_padrao = self._pares_mock_padrao()
+            print(f"[LLMService] Mock ativo: pares insuficientes; usando {len(pares_padrao)} pares padrão do CSV.")
+            return self._reordenar_partida(pares_padrao, mensagem)
+
+        print(f"[LLMService] Mock ativo: {len(pares)} par(es) inferido(s) localmente.")
+        return self._reordenar_partida(pares, mensagem)
+
 
     # ---------------------------------------------------------------------------
     # Interpretação da mensagem via ChatGPT
@@ -321,6 +478,9 @@ class LLMService:
             Lista de {"cod_ibge": int, "produto_id": int}.
             Lista vazia se nenhum par válido for encontrado.
         """
+        if self._settings.LLM_MOCK:
+            return self._interpretar_mensagem_mock(mensagem)
+
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": self._SYSTEM_PROMPT},
             {"role": "user", "content": mensagem},
@@ -333,7 +493,7 @@ class LLMService:
 
         while True:
             iteracao += 1
-            response = self._client.chat.completions.create(
+            response = self._get_client().chat.completions.create(
                 model=self._settings.MODELO_RESPOSTA,
                 messages=messages,
                 tools=self._TOOLS,
@@ -406,5 +566,3 @@ class LLMService:
             pass
 
         return []
-
-

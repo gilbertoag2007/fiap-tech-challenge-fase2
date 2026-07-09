@@ -6,6 +6,7 @@ const DEFAULTS = {
   tamanho_populacao: 200,
   tamanho_elite: 20,
   grau_mutacao: 1.0,
+  capacidade_veiculo_kg: '',
   elitismo: 1,
   populacao_apenas_aleatoria: 0,
   tipo_selecao: 'truncamento',
@@ -19,7 +20,7 @@ const DEFAULTS = {
 
 // --- Componentes auxiliares ---
 
-function NumberInput({ label, field, form, onChange, min, max, placeholder, disabled, hint }) {
+function NumberInput({ label, field, form, onChange, min, max, step = 1, placeholder, disabled, hint, required = true }) {
   return (
     <div>
       <label
@@ -34,8 +35,9 @@ function NumberInput({ label, field, form, onChange, min, max, placeholder, disa
         onChange={e => onChange(field, e.target.value)}
         min={min}
         max={max}
+        step={step}
         placeholder={placeholder}
-        required={!disabled}
+        required={!disabled && required}
         disabled={disabled}
         title={hint}
         className={`w-full text-sm border rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all ${disabled ? 'border-slate-100 bg-slate-100 text-slate-400 cursor-not-allowed' : 'border-slate-200 bg-slate-50 text-slate-700'
@@ -275,6 +277,7 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
       tamanho_populacao: parseInt(form.tamanho_populacao),
       tamanho_elite: parseInt(form.tamanho_elite),
       grau_mutacao: parseFloat(form.grau_mutacao),
+      capacidade_veiculo_kg: form.capacidade_veiculo_kg === '' ? null : parseFloat(form.capacidade_veiculo_kg),
       elitismo: form.elitismo,
       populacao_apenas_aleatoria: form.populacao_apenas_aleatoria,
       tipo_selecao: form.tipo_selecao,
@@ -358,6 +361,20 @@ export default function RouteForm({ onSubmit, onClear, loading, error }) {
               hint="Quantos indivíduos são usados como pais da próxima geração (e, com elitismo ativo, preservados sem alteração). Um valor muito baixo reduz a diversidade genética e favorece a convergência prematura; um valor muito alto aproxima o comportamento de uma busca aleatória."
             />
           </div>
+
+          {/* Restrição logística */}
+          <NumberInput
+            label="Capacidade do Veículo (kg)"
+            field="capacidade_veiculo_kg"
+            form={form}
+            onChange={handleChange}
+            min={0.1}
+            max={100000}
+            step={0.01}
+            placeholder="Ex.: 50"
+            required={false}
+            hint="Capacidade máxima do veículo em kg. Se a carga total dos produtos passar desse valor, a rota continua sendo calculada, mas recebe uma penalidade na aptidão e o painel mostra o excesso."
+          />
 
           {/* Grau de mutação */}
           <div>

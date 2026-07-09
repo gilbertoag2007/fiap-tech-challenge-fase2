@@ -30,6 +30,7 @@ class ProdutoService:
                         id=int(row["ID"]),
                         nome=row["NOME"].strip(),
                         prioridade=int(row["PRIORIDADE"]),
+                        peso_kg=float(row.get("PESO_KG") or 0.0),
                     )
                     self._produtos.append(produto)
                     self._indice[produto.id] = produto

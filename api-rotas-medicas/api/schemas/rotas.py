@@ -31,6 +31,14 @@ class RotasRequest(BaseModel):
         le=10.0,
         description="Grau de mutação para o algoritmo genético (0.00 a 10.00).",
     )
+    capacidade_veiculo_kg: float | None = Field(
+        default=None,
+        gt=0.0,
+        description=(
+            "Capacidade máxima opcional do veículo em kg. Quando informada, "
+            "rotas cuja carga total excede a capacidade recebem penalidade na aptidão."
+        ),
+    )
     populacao_apenas_aleatoria: int = Field(
         default=1,
         ge=0,

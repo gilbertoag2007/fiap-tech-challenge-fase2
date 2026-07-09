@@ -22,6 +22,7 @@ def calcular_rota(request: RotasRequest) -> dict[str, Any]:
             populacao_apenas_aleatoria=request.populacao_apenas_aleatoria,
             tamanho_populacao=request.tamanho_populacao,
             tamanho_elite=request.tamanho_elite,
+            capacidade_veiculo_kg=request.capacidade_veiculo_kg,
             tipo_selecao=request.tipo_selecao,
             tipo_crossover=request.tipo_crossover,
             tipo_mutacao=request.tipo_mutacao,
